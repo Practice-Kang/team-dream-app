@@ -35,8 +35,8 @@ Google Sheet의 `관리 자동화` 탭에 기록된 Apps Script 코드 미러를
 
 ```powershell
 cd apps-script/sheet-automation
-npm install -g @google/clasp
-clasp login
+npm install
+npm run login
 Copy-Item .clasp.json.example .clasp.json
 ```
 
@@ -45,15 +45,15 @@ Copy-Item .clasp.json.example .clasp.json
 원격 Apps Script와 비교하거나 동기화할 때:
 
 ```powershell
-clasp status
-clasp pull
+npm run status
+npm run pull
 git diff
 ```
 
 로컬 변경사항을 실제 Apps Script 프로젝트에 반영할 때:
 
 ```powershell
-clasp push
+npm run push
 ```
 
 `clasp push --force`는 원격 Apps Script 파일을 덮어쓸 수 있으니, 변경사항을 충분히 확인한 뒤에만 사용하세요.
