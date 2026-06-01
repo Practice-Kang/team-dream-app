@@ -13,6 +13,6 @@
     "deployments": "clasp deployments"
   },
   "devDependencies": {
-    "@google/clasp": "^3.3.0"
+    "@google/clasp": "2.3.2"
   }
 }

@@ -20,7 +20,7 @@ Copy-Item .clasp.json.example .clasp.json
 
 `.clasp.json`의 `scriptId`에는 Apps Script 편집기 > 프로젝트 설정 > Script ID 값을 넣습니다.
 
-이 PC에서 `npm`이 잡히지 않으면 Node.js LTS를 설치한 뒤 새 터미널에서 다시 실행하세요.
+이 프로젝트는 현재 PC의 Node.js `v10.11.0` 환경을 고려해 `@google/clasp@2.3.2`로 고정합니다. 나중에 Node.js 20 이상으로 올리면 clasp 3.x 업그레이드를 검토하세요.
 
 ## 작업 흐름
 

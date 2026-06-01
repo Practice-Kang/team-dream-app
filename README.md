@@ -31,6 +31,8 @@ Google Sheet의 `관리 자동화` 탭에 기록된 Apps Script 코드 미러를
 
 앞으로는 가능하면 Apps Script 편집기에서 직접 수정하기보다, 이 저장소에서 수정하고 git diff로 변경사항을 확인한 뒤 `clasp`로 반영하는 흐름을 권장합니다.
 
+현재 PC의 Node.js `v10.11.0` 환경을 고려해 `apps-script/sheet-automation`은 `@google/clasp@2.3.2`로 고정합니다. Node.js 20 이상으로 올린 뒤에는 최신 clasp로 업그레이드할 수 있습니다.
+
 기본 흐름:
 
 ```powershell
