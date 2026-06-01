@@ -1,0 +1,5 @@
+# Keep clasp uploads focused on the actual Apps Script project files.
+**
+!appsscript.json
+!KMC.js
+!*.html

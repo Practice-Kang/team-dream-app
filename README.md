@@ -18,16 +18,19 @@
 ├── README.md
 ├── apps-script/
 │   └── sheet-automation/
-│       ├── Code.gs
+│       ├── KMC.js
 │       ├── README.md
 │       ├── appsscript.json
+│       ├── package.json
+│       ├── package-lock.json
+│       ├── .claspignore
 │       └── .clasp.json.example
 └── web-app/  # 추후 매칭 웹앱 구현 위치
 ```
 
 ## Apps Script 관리
 
-Google Sheet의 `관리 자동화` 탭에 기록된 Apps Script 코드 미러를 `apps-script/sheet-automation/Code.gs`로 가져왔습니다.
+Google Sheet에 연결된 실제 Apps Script 프로젝트를 `apps-script/sheet-automation`에서 관리합니다. `clasp pull` 결과 실제 코드 파일명은 `KMC.js`입니다.
 
 앞으로는 가능하면 Apps Script 편집기에서 직접 수정하기보다, 이 저장소에서 수정하고 git diff로 변경사항을 확인한 뒤 `clasp`로 반영하는 흐름을 권장합니다.
 
@@ -52,9 +55,12 @@ npm run pull
 git diff
 ```
 
+`npm run pull` 후 `KMC.js`와 `appsscript.json` 외 파일이 생기거나 바뀌면, 실제 Apps Script 편집기에서 파일명이 바뀐 것인지 먼저 확인하세요.
+
 로컬 변경사항을 실제 Apps Script 프로젝트에 반영할 때:
 
 ```powershell
+npm run check
 npm run push
 ```
 

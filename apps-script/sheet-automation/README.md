@@ -4,8 +4,9 @@
 
 ## 현재 코드
 
-- `Code.gs`: Google Sheet `관리 자동화` 탭의 `Apps Script` 섹션에서 가져온 코드입니다.
-- `appsscript.json`: 로컬 관리를 위한 기본 manifest입니다. 실제 Apps Script 프로젝트의 manifest와 다를 수 있으므로, `clasp pull` 후 차이를 확인하세요.
+- `KMC.js`: Google Sheet에 연결된 실제 Apps Script 코드 파일입니다.
+- `appsscript.json`: Apps Script 프로젝트 manifest입니다.
+- `.claspignore`: `node_modules`, README, npm 파일 등이 Apps Script 프로젝트에 올라가지 않도록 제한합니다.
 - `.clasp.json.example`: Script ID를 채워 `.clasp.json`으로 복사해 사용하는 예시 파일입니다.
 
 ## clasp 연결
@@ -32,9 +33,16 @@ npm run pull
 git diff
 ```
 
+`pull` 직후 확인할 것:
+
+1. `KMC.js`가 실제 코드 변경인지 확인합니다.
+2. `appsscript.json`은 줄바꿈/공백만 바뀌는 경우가 있으니 내용 변경 여부를 확인합니다.
+3. 새 `.js`, `.gs`, `.html` 파일이 생겼다면 실제 Apps Script 편집기에서 파일이 추가된 것인지 확인하고 `.claspignore`도 함께 조정합니다.
+
 수정 후 반영:
 
 ```powershell
+npm run check
 npm run push
 ```
 
@@ -43,8 +51,28 @@ npm run push
 ## 권장 운영 규칙
 
 1. Apps Script 편집기는 실행, 로그 확인, 트리거 확인 용도로만 사용합니다.
-2. 코드 수정은 이 폴더의 `Code.gs`에서 합니다.
-3. 수정 후 `node --check Code.gs` 또는 Apps Script 편집기의 실행으로 기본 오류를 확인합니다.
+2. 코드 수정은 이 폴더의 `KMC.js`에서 합니다.
+3. 수정 후 `npm run check` 또는 Apps Script 편집기의 실행으로 기본 오류를 확인합니다.
 4. `git diff`로 변경사항을 리뷰합니다.
 5. `npm run push`로 Apps Script에 반영합니다.
 6. 시트에서 실제 동작을 확인한 뒤 git commit/push 합니다.
+
+## 변경 작업 예시
+
+```powershell
+cd D:\Documents\꿈꾸민턴_통합관리\apps-script\sheet-automation
+git status
+npm run pull
+git diff
+
+# KMC.js 수정
+npm run check
+npm run push
+
+# 시트에서 동작 확인 후
+cd D:\Documents\꿈꾸민턴_통합관리
+git status
+git add apps-script/sheet-automation
+git commit -m "Update sheet automation"
+git push
+```

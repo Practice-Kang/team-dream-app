@@ -9,6 +9,7 @@
     "status": "clasp status",
     "pull": "clasp pull",
     "push": "clasp push",
+    "check": "node --check KMC.js",
     "logs": "clasp logs",
     "deployments": "clasp deployments"
   },
