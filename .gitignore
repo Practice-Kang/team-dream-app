@@ -1,0 +1,46 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Node / frontend
+node_modules/
+dist/
+build/
+coverage/
+.next/
+.nuxt/
+.svelte-kit/
+.vite/
+
+# Apps Script / clasp
+.clasprc.json
+.clasp.json
+apps-script/**/.clasp.json
+
+# Local data exports
+*.csv
+*.xlsx
+*.xls
+*.ods
+*.tsv
+
+# Temporary files
+tmp/
+temp/
+.cache/
