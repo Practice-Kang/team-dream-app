@@ -1,11 +1,7 @@
-<script setup lang="ts">
-import { Dumbbell } from "@lucide/vue";
-</script>
-
 <template>
   <header class="app-header">
     <div class="brand-mark" aria-hidden="true">
-      <Dumbbell :size="22" />
+      <img src="/favicon-96x96.png" alt="" />
     </div>
     <div>
       <p class="eyebrow">꿈꾸민턴</p>

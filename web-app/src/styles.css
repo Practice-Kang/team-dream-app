@@ -51,10 +51,18 @@ button {
   display: grid;
   width: 46px;
   height: 46px;
-  color: #f7fff7;
-  background: #0f1419;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #d7ddd4;
   border-radius: 8px;
   place-items: center;
+}
+
+.brand-mark img {
+  display: block;
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
 }
 
 .eyebrow,
