@@ -50,9 +50,9 @@ const MANAGEMENT_AUTOMATION_CONFIG_ = {
 function onOpen(e) {
   resetTodayCheckIfNeeded_();
   SpreadsheetApp.getUi()
-    .createMenu(MENU_TITLE_)
-    .addItem(MENU_SORT_ITEM_, 'normalizeAndSortMembersAsc')
-    .addToUi();
+      .createMenu(MENU_TITLE_)
+      .addItem(MENU_SORT_ITEM_, 'normalizeAndSortMembersAsc')
+      .addToUi();
 }
 
 function onEdit(e) {
@@ -172,7 +172,7 @@ function normalizeAndSortMembersAsc() {
   try {
     const result = normalizeAndSortMembersAscSilent_();
     SpreadsheetApp.getUi().alert(
-      `\uc644\ub8cc: \ud68c\uc6d0\uba85\ub2e8, \uc624\ub298\uccb4\ud06c, \ub300\uc2dc\ubcf4\ub4dc\ub97c \uc6b4\uc601\uc9c4 \uc6b0\uc120 + \uac00\uc785\uc77c \uc624\ub984\ucc28\uc21c\uc73c\ub85c \uc815\ub9ac\ud588\uc2b5\ub2c8\ub2e4. (${result.memberCount}\uba85)`
+        `\uc644\ub8cc: \ud68c\uc6d0\uba85\ub2e8, \uc624\ub298\uccb4\ud06c, \ub300\uc2dc\ubcf4\ub4dc\ub97c \uc6b4\uc601\uc9c4 \uc6b0\uc120 + \uac00\uc785\uc77c \uc624\ub984\ucc28\uc21c\uc73c\ub85c \uc815\ub9ac\ud588\uc2b5\ub2c8\ub2e4. (${result.memberCount}\uba85)`
     );
   } catch (error) {
     SpreadsheetApp.getUi().alert(`\uc2e4\ud328: ${error.message || error}`);
@@ -225,7 +225,7 @@ function readMembers_(sheet) {
   if (lastRow < 2) return [];
 
   const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0]
-    .map((header) => String(header || '').trim());
+      .map((header) => String(header || '').trim());
   const rows = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
 
   const nameIndex = findHeaderIndex_(headers, H_MEMBER_NAME_, 1);
@@ -237,24 +237,24 @@ function readMembers_(sheet) {
   const nameBackgrounds = sheet.getRange(2, nameIndex + 1, lastRow - 1, 1).getBackgrounds();
 
   return rows
-    .map((row, rowIndex) => {
-      const name = String(row[nameIndex] || '').trim();
-      if (!name) return null;
+      .map((row, rowIndex) => {
+        const name = String(row[nameIndex] || '').trim();
+        if (!name) return null;
 
-      const explicitStaff = staffIndex >= 0 ? normalizeYn_(row[staffIndex]) : '';
-      const colorStaff = isStaffColor_(nameBackgrounds[rowIndex][0]) ? 'Y' : '';
+        const explicitStaff = staffIndex >= 0 ? normalizeYn_(row[staffIndex]) : '';
+        const colorStaff = isStaffColor_(nameBackgrounds[rowIndex][0]) ? 'Y' : '';
 
-      return {
-        no: '',
-        name,
-        joinDate: normalizeDateObject_(row[joinIndex]) || row[joinIndex],
-        sex: normalizeSex_(row[sexIndex]),
-        staff: explicitStaff || colorStaff || 'N',
-        exempt: normalizeYn_(row[exemptIndex]),
-        memo: row[memoIndex] || '',
-      };
-    })
-    .filter(Boolean);
+        return {
+          no: '',
+          name,
+          joinDate: normalizeDateObject_(row[joinIndex]) || row[joinIndex],
+          sex: normalizeSex_(row[sexIndex]),
+          staff: explicitStaff || colorStaff || 'N',
+          exempt: normalizeYn_(row[exemptIndex]),
+          memo: row[memoIndex] || '',
+        };
+      })
+      .filter(Boolean);
 }
 
 function writeMemberSheet_(sheet, members) {
@@ -285,22 +285,22 @@ function writeMemberSheet_(sheet, members) {
   sheet.getRange(2, 3, Math.max(values.length, 1), 1).setNumberFormat('yyyy. m. d');
 
   sheet.getRange(2, 4, Math.max(values.length, 1), 1).setDataValidation(
-    SpreadsheetApp.newDataValidation()
-      .requireValueInList(['', SEX_MALE_, SEX_FEMALE_], true)
-      .setAllowInvalid(false)
-      .build()
+      SpreadsheetApp.newDataValidation()
+          .requireValueInList(['', SEX_MALE_, SEX_FEMALE_], true)
+          .setAllowInvalid(false)
+          .build()
   );
   sheet.getRange(2, 5, Math.max(values.length, 1), 1).setDataValidation(
-    SpreadsheetApp.newDataValidation()
-      .requireValueInList(['', 'Y', 'N'], true)
-      .setAllowInvalid(false)
-      .build()
+      SpreadsheetApp.newDataValidation()
+          .requireValueInList(['', 'Y', 'N'], true)
+          .setAllowInvalid(false)
+          .build()
   );
   sheet.getRange(2, 6, Math.max(values.length, 1), 1).setDataValidation(
-    SpreadsheetApp.newDataValidation()
-      .requireValueInList(['', 'Y', 'N'], true)
-      .setAllowInvalid(false)
-      .build()
+      SpreadsheetApp.newDataValidation()
+          .requireValueInList(['', 'Y', 'N'], true)
+          .setAllowInvalid(false)
+          .build()
   );
 
   sheet.getRange(2, 2, Math.max(clearRows - 1, 1), 1).setBackground('#ffffff');
@@ -393,11 +393,11 @@ function syncDashboard_(sheet, members) {
   const formulas = members.map((member, index) => {
     const r = startRow + index;
     const lastAttendance =
-      `MAXIFS('${SHEET_LOG_}'!$A:$A,'${SHEET_LOG_}'!$B:$B,$B${r},'${SHEET_LOG_}'!$C:$C,"O")`;
+        `MAXIFS('${SHEET_LOG_}'!$A:$A,'${SHEET_LOG_}'!$B:$B,$B${r},'${SHEET_LOG_}'!$C:$C,"O")`;
     const joinDateLookup =
-      `IFERROR(INDEX('${SHEET_MEMBERS_}'!$C:$C,MATCH($B${r},'${SHEET_MEMBERS_}'!$B:$B,0)),"")`;
+        `IFERROR(INDEX('${SHEET_MEMBERS_}'!$C:$C,MATCH($B${r},'${SHEET_MEMBERS_}'!$B:$B,0)),"")`;
     const exemptLookup =
-      `IFERROR(INDEX('${SHEET_MEMBERS_}'!$F:$F,MATCH($B${r},'${SHEET_MEMBERS_}'!$B:$B,0)),"")`;
+        `IFERROR(INDEX('${SHEET_MEMBERS_}'!$F:$F,MATCH($B${r},'${SHEET_MEMBERS_}'!$B:$B,0)),"")`;
 
     return [
       `=IF($B${r}="","",${joinDateLookup})`,
@@ -432,38 +432,38 @@ function syncDashboardStatsAndCharts_(sheet) {
 
   sheet.getRange('Q2:R2').setValues([[H_MEMBER_NAME_, '\ucd9c\uc11d\ud69f\uc218']]);
   sheet.getRange('Q3').setFormula(
-    `=IFERROR(QUERY(FILTER({'${SHEET_LOG_}'!B2:B,'${SHEET_LOG_}'!A2:A,'${SHEET_LOG_}'!C2:C},'${SHEET_LOG_}'!C2:C="O",'${SHEET_LOG_}'!A2:A<=$B$2,ISNUMBER(MATCH('${SHEET_LOG_}'!B2:B,'${SHEET_MEMBERS_}'!B2:B,0))),"select Col1, count(Col1) group by Col1 order by count(Col1) desc limit 3 label Col1 '', count(Col1) ''",0),{"\uae30\ub85d\uc5c6\uc74c",0})`
+      `=IFERROR(QUERY(FILTER({'${SHEET_LOG_}'!B2:B,'${SHEET_LOG_}'!A2:A,'${SHEET_LOG_}'!C2:C},'${SHEET_LOG_}'!C2:C="O",'${SHEET_LOG_}'!A2:A<=$B$2,ISNUMBER(MATCH('${SHEET_LOG_}'!B2:B,'${SHEET_MEMBERS_}'!B2:B,0))),"select Col1, count(Col1) group by Col1 order by count(Col1) desc limit 10 label Col1 '', count(Col1) ''",0),{"\uae30\ub85d\uc5c6\uc74c",0})`
   );
-  sheet.getRange('R3:R5').setNumberFormat('0');
+  sheet.getRange('R3:R12').setNumberFormat('0');
 
   sheet.getCharts().forEach((chart) => sheet.removeChart(chart));
 
   const genderChart = sheet.newChart()
-    .setChartType(Charts.ChartType.PIE)
-    .addRange(sheet.getRange('N2:O4'))
-    .setPosition(2, 14, 0, 0)
-    .setOption('title', '\uc131\ubcc4 \uad6c\uc131')
-    .setOption('pieHole', 0.35)
-    .setOption('pieSliceText', 'value')
-    .setOption('pieSliceTextStyle', { fontSize: 14, bold: true })
-    .setOption('legend', { position: 'right' })
-    .setOption('tooltip', { text: 'value' })
-    .setOption('width', 430)
-    .setOption('height', 260)
-    .build();
+      .setChartType(Charts.ChartType.PIE)
+      .addRange(sheet.getRange('N2:O4'))
+      .setPosition(2, 14, 0, 0)
+      .setOption('title', '\uc131\ubcc4 \uad6c\uc131')
+      .setOption('pieHole', 0.35)
+      .setOption('pieSliceText', 'value')
+      .setOption('pieSliceTextStyle', { fontSize: 14, bold: true })
+      .setOption('legend', { position: 'right' })
+      .setOption('tooltip', { text: 'value' })
+      .setOption('width', 430)
+      .setOption('height', 260)
+      .build();
   sheet.insertChart(genderChart);
 
   const topChart = sheet.newChart()
-    .setChartType(Charts.ChartType.BAR)
-    .addRange(sheet.getRange('Q2:R5'))
-    .setPosition(17, 14, 0, 0)
-    .setOption('title', '\ucd9c\uc11d TOP3')
-    .setOption('legend', { position: 'none' })
-    .setOption('hAxis', { minValue: 0, format: '0', viewWindow: { min: 0 } })
-    .setOption('annotations', { alwaysOutside: true })
-    .setOption('width', 560)
-    .setOption('height', 260)
-    .build();
+      .setChartType(Charts.ChartType.BAR)
+      .addRange(sheet.getRange('Q2:R12'))
+      .setPosition(17, 14, 0, 0)
+      .setOption('title', '\ucd9c\uc11d TOP10')
+      .setOption('legend', { position: 'none' })
+      .setOption('hAxis', { minValue: 0, format: '0', viewWindow: { min: 0 } })
+      .setOption('annotations', { alwaysOutside: true })
+      .setOption('width', 560)
+      .setOption('height', 360)
+      .build();
   sheet.insertChart(topChart);
 }
 
@@ -490,8 +490,8 @@ function resetTodayCheckIfNeeded_() {
   const lastRow = Math.max(sheet.getLastRow(), cfg.startRow);
   if (lastRow >= cfg.startRow) {
     sheet
-      .getRange(cfg.startRow, cfg.checkCol, lastRow - cfg.startRow + 1, 4)
-      .clearContent();
+        .getRange(cfg.startRow, cfg.checkCol, lastRow - cfg.startRow + 1, 4)
+        .clearContent();
   }
 
   props.setProperty('TODAY_CHECK_DATE', key);

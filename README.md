@@ -30,8 +30,7 @@
 
 ## Apps Script 관리
 
-Google Sheet에 연결된 Apps Script는 `apps-script/sheet-automation`에서 관리합니다. 자세한 설정과 운영 절차는 [apps-script/sheet-automation/README.md](./apps-script/sheet-automation/README.md)를 참고하세요.
-
+Google Sheet에 연결된 Apps Script는 `apps-script/sheet-automation`에서 관리합니다.(https://github.com/Practice-Kang/team-dream-app/blob/main/apps-script/sheet-automation/README.md)
 Apps Script를 수정한 뒤 Google Sheet에 즉시 반영할 때:
 
 ```powershell
@@ -39,8 +38,6 @@ cd apps-script/sheet-automation
 npm run check
 npm run push
 ```
-
-`clasp push --force`는 원격 Apps Script 파일을 덮어쓸 수 있으니, 변경사항을 충분히 확인한 뒤에만 사용하세요.
 
 ## 데이터 원칙
 
