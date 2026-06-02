@@ -33,8 +33,8 @@ Known `회원명단` columns:
 - `No`
 - `가입일`
 - `회원명`
-- `급수`
-- `점수`
+- `급수(지역)`
+- `점수(백분위)`
 - `성별`
 - `운영진(Y/N)`
 - `면제(Y/N)`
@@ -54,7 +54,7 @@ Important data rules:
 - Normalize member names carefully, but do not silently merge different people with similar names.
 - Handle blank trailing columns and partially empty rows from Google Sheets CSV/export responses.
 - Keep gender values compatible with the sheet's Korean values: `남`, `여`.
-- Treat `급수` as an organizer-facing label and `점수` as a 0-100 skill score for matching.
+- Treat `급수(지역)` as an organizer-facing label and `점수(백분위)` as a 0-100 skill score for matching.
 
 ## Product Users
 

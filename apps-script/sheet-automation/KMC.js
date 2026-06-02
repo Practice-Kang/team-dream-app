@@ -12,8 +12,10 @@ const SHEET_MANAGEMENT_ = '\uad00\ub9ac \uc790\ub3d9\ud654';
 
 const H_MEMBER_NAME_ = '\ud68c\uc6d0\uba85';
 const H_JOIN_DATE_ = '\uac00\uc785\uc77c';
-const H_LEVEL_ = '\uae09\uc218';
-const H_SKILL_SCORE_ = '\uc810\uc218';
+const H_LEVEL_ = '\uae09\uc218(\uc9c0\uc5ed)';
+const H_LEVEL_LEGACY_ = '\uae09\uc218';
+const H_SKILL_SCORE_ = '\uc810\uc218(\ubc31\ubd84\uc704)';
+const H_SKILL_SCORE_LEGACY_ = '\uc810\uc218';
 const H_SEX_ = '\uc131\ubcc4';
 const H_STAFF_ = '\uc6b4\uc601\uc9c4(Y/N)';
 const H_EXEMPT_ = '\uba74\uc81c(Y/N)';
@@ -240,8 +242,8 @@ function readMembers_(sheet) {
 
   const nameIndex = findHeaderIndex_(headers, H_MEMBER_NAME_, 1);
   const joinIndex = findHeaderIndex_(headers, H_JOIN_DATE_, 2);
-  const levelIndex = findHeaderIndex_(headers, H_LEVEL_, -1);
-  const skillScoreIndex = findHeaderIndex_(headers, H_SKILL_SCORE_, -1);
+  const levelIndex = findHeaderIndexAny_(headers, [H_LEVEL_, H_LEVEL_LEGACY_], -1);
+  const skillScoreIndex = findHeaderIndexAny_(headers, [H_SKILL_SCORE_, H_SKILL_SCORE_LEGACY_], -1);
   const sexIndex = findHeaderIndex_(headers, H_SEX_, 3);
   const staffIndex = findHeaderIndex_(headers, H_STAFF_, -1);
   const exemptIndex = findHeaderIndex_(headers, H_EXEMPT_, staffIndex >= 0 ? 5 : 4);
