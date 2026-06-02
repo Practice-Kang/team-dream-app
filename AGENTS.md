@@ -4,7 +4,7 @@
 
 This repository is for `꿈꾸민턴`, a badminton club of about 100 members, to build a mobile-first doubles matching web app for club meetups.
 
-The app should help organizers prepare and run men's doubles, women's doubles, and mixed doubles games without manually writing name labels or moving magnets on a board.
+The app should help organizers prepare and run integrated doubles games without manually writing name labels or moving magnets on a board.
 
 Primary goals:
 
@@ -12,6 +12,9 @@ Primary goals:
 - Generate doubles matches from selected attendees.
 - Respect the number of available courts per round.
 - Clearly separate players assigned to games from waiting players.
+- Keep waiting players in a single FIFO-style queue instead of pre-assigning them to future courts.
+- Treat in-progress court assignments as locked. Do not move or replace players inside a game that has already started.
+- Let organizers adjust only the waiting queue with touch drag interactions and explicit priority/hold actions.
 - Reduce repeated partners/opponents, excessive consecutive play, and long waits over time.
 - Show match order and court assignments in a way members can understand at the gym.
 
@@ -60,7 +63,7 @@ Important data rules:
 
 Primary user: organizer/game runner.
 
-They need to select attendees, set court count, generate matches, reshuffle, advance rounds, and share results while also participating in games.
+They need to select attendees, set court count, generate matches, reorder waiting players, advance courts as they finish, and share results while also participating in games.
 
 Secondary user: regular member.
 
@@ -78,7 +81,11 @@ Include:
 - Court count setting.
 - Doubles match generation.
 - Waiting-player display.
-- Reshuffle/regenerate action.
+- Court-by-court current assignment display.
+- FIFO-style waiting queue for the next available court.
+- In-progress court assignments locked from manual edits.
+- Touch drag reordering and simple priority/hold controls for the waiting queue.
+- Reshuffle/regenerate action before games start; during play, adjust only the waiting queue.
 - Copyable match result text.
 - Mobile browser access.
 - Read-only sheet data access.
@@ -113,6 +120,8 @@ P1:
 - Today's accumulated game count.
 - Consecutive-wait prevention.
 - Result copy/share.
+- Waiting queue priority/hold handling.
+- Waiting queue manual ordering.
 
 P2:
 
@@ -133,6 +142,12 @@ Round capacity:
 - `gamesPerRound = min(courtCount, floor(attendeeCount / 4))`
 - `playersPerRound = gamesPerRound * 4`
 - Remaining attendees are waiting players.
+- For MVP, do not split generation into men's doubles, women's doubles, and mixed doubles modes. Treat selected attendees as one integrated pool.
+- Waiting players should be shown as one ordered player queue. Do not pre-assign waiting players to future court numbers or future match groups.
+- When any court finishes first, build the next match for that court by prioritizing players near the front of the waiting queue.
+- A current court assignment represents an in-progress game and must be immutable. The app must not move, replace, or repair players inside an in-progress game.
+- Manual organizer changes apply only to the waiting queue order/status. A waiting player can be moved earlier/later, temporarily held, or given priority, but not assigned to a specific future court.
+- The only normal transition for an in-progress court is `complete court -> build next match from waiting queue`.
 
 The matching algorithm should be explainable. Prefer clear scoring and deterministic tie-breaking over opaque randomness.
 
@@ -143,7 +158,9 @@ When improving fairness, consider:
 - Balance total games played today.
 - Avoid repeated partners before avoiding repeated opponents if a tradeoff is needed.
 - Avoid very uneven games when skill data becomes available.
-- Consider gender composition for men's doubles, women's doubles, and mixed doubles, but do not invent unavailable gender/skill data.
+- If organizers manually change the waiting queue, preserve that intent ahead of automatic fairness scoring unless it would create an obviously invalid match.
+- Do not take players from another active court to fill a different court. There is no cross-court movement while games are in progress.
+- Gender can be used as a balancing signal later, but do not require separate gender-based match modes in MVP.
 
 For MVP, it is acceptable to start with simple fair rotation and reshuffle behavior, then add stronger balancing once match history and skill inputs exist.
 
@@ -163,13 +180,13 @@ The first screen should be the usable matching workflow, not a marketing landing
 
 ## Engineering Guidance
 
-There is no established stack yet. When scaffolding starts, choose a simple web stack that supports fast mobile UI iteration and static/light backend deployment.
+Use the established MVP stack: Vue 3 + Vite + TypeScript for the web app, Cloudflare Pages/Pages Functions for hosting and API, Cloudflare D1 for short-lived match sessions, and Google Sheets `회원명단` as the read-only member source.
 
 Keep the first implementation small:
 
 - Separate sheet fetching/parsing from matching logic.
 - Make matching logic pure and unit-testable.
-- Add tests around round capacity, waiting players, gender constraints, repeated players, and reshuffle behavior.
+- Add tests around round capacity, waiting players, locked in-progress courts, gender constraints, repeated players, and reshuffle behavior.
 - Keep member data types explicit.
 - Make sheet access replaceable so a future database can be added without rewriting the matching engine.
 
@@ -177,11 +194,11 @@ Recommended core concepts:
 
 - `Member`: stable member identity from `회원명단`.
 - `Attendee`: a member selected for today's meetup.
-- `Match`: court number, team A, team B, and match type.
-- `Round`: generated matches plus waiting attendees.
-- `SessionState`: today's selected attendees, court count, rounds, and per-member play/wait counts.
+- `Match`: court number, team A, and team B.
+- `Round`: locked current court assignments plus waiting queue.
+- `SessionState`: today's selected attendees, court count, current matches, waiting queue, and per-member play/wait counts.
 
-Do not add persistence, authentication, or admin management unless the user asks for it.
+Do not add long-term member/result persistence, authentication, or admin management unless the user asks for it. Short-lived session persistence in D1 is part of the MVP stack.
 
 ## Success Criteria
 

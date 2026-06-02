@@ -9,6 +9,8 @@
 - Google Sheet: <https://docs.google.com/spreadsheets/d/1IWyUCa6DJCJ2ET-DTNQLoEkHw9tcx42w3CWCR196dMQ>
 - 유저스토리 초안: <https://knowing-vegetable-bb9.notion.site/372735f79f1d80bba2f1ecc27046a55f>
 - 프로젝트 작업 지침: [AGENTS.md](./AGENTS.md)
+- 기술 스택 결정: [docs/01-tech-stack.md](./docs/01-tech-stack.md)
+- 와이어프레임 초안: [docs/02-wireframes.md](./docs/02-wireframes.md)
 
 ## 디렉토리 구조
 
@@ -16,6 +18,9 @@
 .
 ├── AGENTS.md
 ├── README.md
+├── docs/
+│   ├── 01-tech-stack.md
+│   └── 02-wireframes.md
 ├── apps-script/
 │   └── sheet-automation/
 │       ├── KMC.js
@@ -25,7 +30,7 @@
 │       ├── package-lock.json
 │       ├── .claspignore
 │       └── .clasp.json.example
-└── web-app/  # 추후 매칭 웹앱 구현 위치
+└── web-app/  # Vue 3 + Cloudflare Pages 매칭 웹앱
 ```
 
 ## Apps Script 관리
@@ -52,3 +57,13 @@ npm run push
 - 매칭 알고리즘은 순수 함수 중심으로 작성하고 테스트 가능하게 유지합니다.
 - 모바일 현장 사용성을 우선합니다.
 - 첫 화면은 소개 페이지가 아니라 바로 사용할 수 있는 매칭 흐름이어야 합니다.
+
+## 웹앱 개발
+
+웹앱은 `web-app`에서 관리합니다. Vite/Vue 개발 환경은 Node.js 22.12.0 이상을 기준으로 합니다.
+
+```powershell
+cd web-app
+npm install
+npm run dev
+```

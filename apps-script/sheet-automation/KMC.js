@@ -244,6 +244,9 @@ function readMembers_(sheet) {
   const joinIndex = findHeaderIndex_(headers, H_JOIN_DATE_, 2);
   const levelIndex = findHeaderIndexAny_(headers, [H_LEVEL_, H_LEVEL_LEGACY_], -1);
   const skillScoreIndex = findHeaderIndexAny_(headers, [H_SKILL_SCORE_, H_SKILL_SCORE_LEGACY_], -1);
+  if (levelIndex < 0 || skillScoreIndex < 0) {
+    throw new Error(`${SHEET_MEMBERS_}\uc5d0 ${H_LEVEL_}/${H_SKILL_SCORE_} \uc5f4\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ud5e4\ub354\ub97c \uba3c\uc800 \ud655\uc778\ud574\uc8fc\uc138\uc694.`);
+  }
   const sexIndex = findHeaderIndex_(headers, H_SEX_, 3);
   const staffIndex = findHeaderIndex_(headers, H_STAFF_, -1);
   const exemptIndex = findHeaderIndex_(headers, H_EXEMPT_, staffIndex >= 0 ? 5 : 4);
