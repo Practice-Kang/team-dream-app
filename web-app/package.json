@@ -1,0 +1,44 @@
+{
+  "name": "team-dream-web-app",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "npm@11.16.0",
+  "engines": {
+    "node": "^22.12.0 || >=24.0.0"
+  },
+  "volta": {
+    "node": "22.12.0",
+    "npm": "11.16.0"
+  },
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.app.json && vue-tsc --noEmit -p tsconfig.node.json",
+    "build": "npm run typecheck && vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "cf:dev": "npm run build && wrangler pages dev dist --compatibility-date=2026-06-02",
+    "cf:deploy": "npm run build && wrangler pages deploy dist",
+    "db:migrate:local": "wrangler d1 migrations apply team-dream-sessions --local",
+    "db:migrate:remote": "wrangler d1 migrations apply team-dream-sessions --remote"
+  },
+  "dependencies": {
+    "@lucide/vue": "1.17.0",
+    "pinia": "3.0.4",
+    "vue": "3.5.35",
+    "vue-router": "4.6.4"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "4.20260602.1",
+    "@vitejs/plugin-vue": "6.0.7",
+    "@vue/compiler-sfc": "3.5.35",
+    "@vue/test-utils": "2.4.10",
+    "happy-dom": "20.9.0",
+    "typescript": "6.0.3",
+    "vite": "8.0.16",
+    "vitest": "4.1.8",
+    "vue-tsc": "3.3.3",
+    "wrangler": "4.96.0"
+  }
+}

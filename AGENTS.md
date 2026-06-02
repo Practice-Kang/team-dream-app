@@ -14,6 +14,7 @@ Primary goals:
 - Clearly separate players assigned to games from waiting players.
 - Keep waiting players in a single FIFO-style queue instead of pre-assigning them to future courts.
 - Treat in-progress court assignments as locked. Do not move or replace players inside a game that has already started.
+- Do not infer real-world court start/end state. Organizers must explicitly tap start/end for each court.
 - Let organizers adjust only the waiting queue with touch drag interactions and explicit priority/hold actions.
 - Reduce repeated partners/opponents, excessive consecutive play, and long waits over time.
 - Show match order and court assignments in a way members can understand at the gym.
@@ -63,7 +64,7 @@ Important data rules:
 
 Primary user: organizer/game runner.
 
-They need to select attendees, set court count, generate matches, reorder waiting players, advance courts as they finish, and share results while also participating in games.
+They need to select attendees, set court count, generate matches, mark each court as started/ended, reorder waiting players, advance courts as they finish, and share results while also participating in games.
 
 Secondary user: regular member.
 
@@ -82,6 +83,8 @@ Include:
 - Doubles match generation.
 - Waiting-player display.
 - Court-by-court current assignment display.
+- Per-court status display: empty, assigned, in progress.
+- Organizer-controlled start/end buttons for each court.
 - FIFO-style waiting queue for the next available court.
 - In-progress court assignments locked from manual edits.
 - Touch drag reordering and simple priority/hold controls for the waiting queue.
@@ -118,6 +121,8 @@ P1:
 - Name search.
 - Next-round generation.
 - Today's accumulated game count.
+- Per-attendee play count display for today's session.
+- Per-attendee play frequency preference: high, normal, low.
 - Consecutive-wait prevention.
 - Result copy/share.
 - Waiting queue priority/hold handling.
@@ -145,9 +150,16 @@ Round capacity:
 - For MVP, do not split generation into men's doubles, women's doubles, and mixed doubles modes. Treat selected attendees as one integrated pool.
 - Waiting players should be shown as one ordered player queue. Do not pre-assign waiting players to future court numbers or future match groups.
 - When any court finishes first, build the next match for that court by prioritizing players near the front of the waiting queue.
-- A current court assignment represents an in-progress game and must be immutable. The app must not move, replace, or repair players inside an in-progress game.
+- The app must never infer whether a real-world match has started or ended. Only organizer actions change court status.
+- Court status should flow as `empty -> assigned -> in progress -> ended -> assigned/empty`.
+- When the organizer taps `end` on a court, complete that court's current match and automatically assign the next match to the same court when the waiting queue has enough players.
+- A court assignment becomes immutable only after the organizer taps `start`. The app must not move, replace, or repair players inside an in-progress game.
 - Manual organizer changes apply only to the waiting queue order/status. A waiting player can be moved earlier/later, temporarily held, or given priority, but not assigned to a specific future court.
-- The only normal transition for an in-progress court is `complete court -> build next match from waiting queue`.
+- The only normal transition for an in-progress court is `end court -> build next assigned match from waiting queue`.
+- Every attendee should have a visible play count for the current session.
+- Organizers can set each attendee's session play frequency preference to `high`, `normal`, or `low`.
+- Play frequency preference is a session-level setting in MVP, not a write back to the Google Sheet.
+- `high` means the player is willing to play more often, `normal` is neutral, and `low` means the player should be rested more often when there are enough attendees.
 
 The matching algorithm should be explainable. Prefer clear scoring and deterministic tie-breaking over opaque randomness.
 
@@ -156,6 +168,7 @@ When improving fairness, consider:
 - Lower priority for players who played in the immediately previous round.
 - Higher priority for players who have waited longer.
 - Balance total games played today.
+- Adjust game-count balancing by play frequency preference. For example, compare `gamesPlayed / targetWeight`, where `high = 1.2`, `normal = 1.0`, and `low = 0.8`.
 - Avoid repeated partners before avoiding repeated opponents if a tradeoff is needed.
 - Avoid very uneven games when skill data becomes available.
 - If organizers manually change the waiting queue, preserve that intent ahead of automatic fairness scoring unless it would create an obviously invalid match.
@@ -193,10 +206,11 @@ Keep the first implementation small:
 Recommended core concepts:
 
 - `Member`: stable member identity from `회원명단`.
-- `Attendee`: a member selected for today's meetup.
+- `Attendee`: a member selected for today's meetup, including today's play count and play frequency preference.
 - `Match`: court number, team A, and team B.
-- `Round`: locked current court assignments plus waiting queue.
-- `SessionState`: today's selected attendees, court count, current matches, waiting queue, and per-member play/wait counts.
+- `CourtState`: court number, status, and optional current match.
+- `Round`: current court states plus waiting queue.
+- `SessionState`: today's selected attendees, court count, current matches, waiting queue, per-member play/wait counts, and per-attendee frequency preferences.
 
 Do not add long-term member/result persistence, authentication, or admin management unless the user asks for it. Short-lived session persistence in D1 is part of the MVP stack.
 
