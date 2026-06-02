@@ -12,11 +12,21 @@ const SHEET_MANAGEMENT_ = '\uad00\ub9ac \uc790\ub3d9\ud654';
 
 const H_MEMBER_NAME_ = '\ud68c\uc6d0\uba85';
 const H_JOIN_DATE_ = '\uac00\uc785\uc77c';
+const H_LEVEL_ = '\uae09\uc218';
+const H_SKILL_SCORE_ = '\uc810\uc218';
 const H_SEX_ = '\uc131\ubcc4';
 const H_STAFF_ = '\uc6b4\uc601\uc9c4(Y/N)';
 const H_EXEMPT_ = '\uba74\uc81c(Y/N)';
 const H_NOTE_ = '\ube44\uace0';
 const H_MEMO_ = '\uba54\ubaa8';
+
+const MEMBER_SHEET_COLUMN_COUNT_ = 9;
+const MEMBER_COL_JOIN_DATE_ = 2;
+const MEMBER_COL_NAME_ = 3;
+const MEMBER_COL_SKILL_SCORE_ = 5;
+const MEMBER_COL_SEX_ = 6;
+const MEMBER_COL_STAFF_ = 7;
+const MEMBER_COL_EXEMPT_ = 8;
 
 const STATUS_NORMAL_ = '\uc815\uc0c1';
 const STATUS_REVIEW_ = '\uac15\ud1f4 \uac80\ud1a0';
@@ -221,7 +231,7 @@ function normalizeAndSortMembersAscSilent_() {
 
 function readMembers_(sheet) {
   const lastRow = sheet.getLastRow();
-  const lastCol = Math.max(sheet.getLastColumn(), 7);
+  const lastCol = Math.max(sheet.getLastColumn(), MEMBER_SHEET_COLUMN_COUNT_);
   if (lastRow < 2) return [];
 
   const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0]
@@ -230,6 +240,8 @@ function readMembers_(sheet) {
 
   const nameIndex = findHeaderIndex_(headers, H_MEMBER_NAME_, 1);
   const joinIndex = findHeaderIndex_(headers, H_JOIN_DATE_, 2);
+  const levelIndex = findHeaderIndex_(headers, H_LEVEL_, -1);
+  const skillScoreIndex = findHeaderIndex_(headers, H_SKILL_SCORE_, -1);
   const sexIndex = findHeaderIndex_(headers, H_SEX_, 3);
   const staffIndex = findHeaderIndex_(headers, H_STAFF_, -1);
   const exemptIndex = findHeaderIndex_(headers, H_EXEMPT_, staffIndex >= 0 ? 5 : 4);
@@ -248,6 +260,8 @@ function readMembers_(sheet) {
           no: '',
           name,
           joinDate: normalizeDateObject_(row[joinIndex]) || row[joinIndex],
+          level: levelIndex >= 0 ? String(row[levelIndex] || '').trim() : '',
+          skillScore: skillScoreIndex >= 0 ? normalizeSkillScore_(row[skillScoreIndex]) : '',
           sex: normalizeSex_(row[sexIndex]),
           staff: explicitStaff || colorStaff || 'N',
           exempt: normalizeYn_(row[exemptIndex]),
@@ -259,12 +273,16 @@ function readMembers_(sheet) {
 
 function writeMemberSheet_(sheet, members) {
   const clearRows = Math.max(sheet.getLastRow(), members.length + 1);
-  sheet.getRange(1, 1, clearRows, 7).clearContent();
+  const clearBodyRows = Math.max(clearRows - 1, 1);
+  sheet.getRange(1, 1, clearRows, MEMBER_SHEET_COLUMN_COUNT_).clearContent();
+  sheet.getRange(2, 1, clearBodyRows, MEMBER_SHEET_COLUMN_COUNT_).clearDataValidations();
 
-  sheet.getRange(1, 1, 1, 7).setValues([[
+  sheet.getRange(1, 1, 1, MEMBER_SHEET_COLUMN_COUNT_).setValues([[
     'No',
-    H_MEMBER_NAME_,
     H_JOIN_DATE_,
+    H_MEMBER_NAME_,
+    H_LEVEL_,
+    H_SKILL_SCORE_,
     H_SEX_,
     H_STAFF_,
     H_EXEMPT_,
@@ -273,41 +291,49 @@ function writeMemberSheet_(sheet, members) {
 
   const values = members.map((member) => [
     member.no,
-    member.name,
     member.joinDate,
+    member.name,
+    member.level,
+    member.skillScore,
     member.sex,
     member.staff,
     member.exempt,
     member.memo,
   ]);
 
-  sheet.getRange(2, 1, values.length, 7).setValues(values);
-  sheet.getRange(2, 3, Math.max(values.length, 1), 1).setNumberFormat('yyyy. m. d');
+  sheet.getRange(2, 1, values.length, MEMBER_SHEET_COLUMN_COUNT_).setValues(values);
+  sheet.getRange(2, MEMBER_COL_JOIN_DATE_, Math.max(values.length, 1), 1).setNumberFormat('yyyy. m. d');
 
-  sheet.getRange(2, 4, Math.max(values.length, 1), 1).setDataValidation(
+  sheet.getRange(2, MEMBER_COL_SKILL_SCORE_, Math.max(values.length, 1), 1).setDataValidation(
+      SpreadsheetApp.newDataValidation()
+          .requireNumberBetween(0, 100)
+          .setAllowInvalid(false)
+          .build()
+  );
+  sheet.getRange(2, MEMBER_COL_SEX_, Math.max(values.length, 1), 1).setDataValidation(
       SpreadsheetApp.newDataValidation()
           .requireValueInList(['', SEX_MALE_, SEX_FEMALE_], true)
           .setAllowInvalid(false)
           .build()
   );
-  sheet.getRange(2, 5, Math.max(values.length, 1), 1).setDataValidation(
+  sheet.getRange(2, MEMBER_COL_STAFF_, Math.max(values.length, 1), 1).setDataValidation(
       SpreadsheetApp.newDataValidation()
           .requireValueInList(['', 'Y', 'N'], true)
           .setAllowInvalid(false)
           .build()
   );
-  sheet.getRange(2, 6, Math.max(values.length, 1), 1).setDataValidation(
+  sheet.getRange(2, MEMBER_COL_EXEMPT_, Math.max(values.length, 1), 1).setDataValidation(
       SpreadsheetApp.newDataValidation()
           .requireValueInList(['', 'Y', 'N'], true)
           .setAllowInvalid(false)
           .build()
   );
 
-  sheet.getRange(2, 2, Math.max(clearRows - 1, 1), 1).setBackground('#ffffff');
+  sheet.getRange(2, MEMBER_COL_NAME_, clearBodyRows, 1).setBackground('#ffffff');
   const nameBackgrounds = members.map((member) => [
     isStaff_(member.staff) ? '#fff2cc' : '#ffffff',
   ]);
-  sheet.getRange(2, 2, nameBackgrounds.length, 1).setBackgrounds(nameBackgrounds);
+  sheet.getRange(2, MEMBER_COL_NAME_, nameBackgrounds.length, 1).setBackgrounds(nameBackgrounds);
 }
 
 function syncTodayCheck_(sheet, members) {
@@ -346,7 +372,7 @@ function syncDashboard_(sheet, members) {
     STATUS_EXEMPT_,
   ]]);
   sheet.getRange('D3:H3').setFormulas([[
-    `=COUNTA('${SHEET_MEMBERS_}'!B2:B)`,
+    `=COUNTA('${SHEET_MEMBERS_}'!C2:C)`,
     `=COUNTIF($H$${startRow}:$H$${endRow},"${STATUS_NORMAL_}")`,
     `=COUNTIF($H$${startRow}:$H$${endRow},"${STATUS_REVIEW_}")`,
     `=COUNTIF($H$${startRow}:$H$${endRow},"${STATUS_JOIN_CHECK_}")`,
@@ -395,9 +421,9 @@ function syncDashboard_(sheet, members) {
     const lastAttendance =
         `MAXIFS('${SHEET_LOG_}'!$A:$A,'${SHEET_LOG_}'!$B:$B,$B${r},'${SHEET_LOG_}'!$C:$C,"O")`;
     const joinDateLookup =
-        `IFERROR(INDEX('${SHEET_MEMBERS_}'!$C:$C,MATCH($B${r},'${SHEET_MEMBERS_}'!$B:$B,0)),"")`;
+        `IFERROR(INDEX('${SHEET_MEMBERS_}'!$B:$B,MATCH($B${r},'${SHEET_MEMBERS_}'!$C:$C,0)),"")`;
     const exemptLookup =
-        `IFERROR(INDEX('${SHEET_MEMBERS_}'!$F:$F,MATCH($B${r},'${SHEET_MEMBERS_}'!$B:$B,0)),"")`;
+        `IFERROR(INDEX('${SHEET_MEMBERS_}'!$H:$H,MATCH($B${r},'${SHEET_MEMBERS_}'!$C:$C,0)),"")`;
 
     return [
       `=IF($B${r}="","",${joinDateLookup})`,
@@ -424,15 +450,15 @@ function syncDashboardStatsAndCharts_(sheet) {
     ['\ubbf8\uc785\ub825', ''],
   ]);
   sheet.getRange('O3:O5').setFormulas([
-    [`=COUNTIF('${SHEET_MEMBERS_}'!D2:D,"${SEX_MALE_}")`],
-    [`=COUNTIF('${SHEET_MEMBERS_}'!D2:D,"${SEX_FEMALE_}")`],
-    [`=COUNTIFS('${SHEET_MEMBERS_}'!B2:B,"<>",'${SHEET_MEMBERS_}'!D2:D,"")`],
+    [`=COUNTIF('${SHEET_MEMBERS_}'!F2:F,"${SEX_MALE_}")`],
+    [`=COUNTIF('${SHEET_MEMBERS_}'!F2:F,"${SEX_FEMALE_}")`],
+    [`=COUNTIFS('${SHEET_MEMBERS_}'!C2:C,"<>",'${SHEET_MEMBERS_}'!F2:F,"")`],
   ]);
   sheet.getRange('O3:O5').setNumberFormat('0');
 
   sheet.getRange('Q2:R2').setValues([[H_MEMBER_NAME_, '\ucd9c\uc11d\ud69f\uc218']]);
   sheet.getRange('Q3').setFormula(
-      `=IFERROR(QUERY(FILTER({'${SHEET_LOG_}'!B2:B,'${SHEET_LOG_}'!A2:A,'${SHEET_LOG_}'!C2:C},'${SHEET_LOG_}'!C2:C="O",'${SHEET_LOG_}'!A2:A<=$B$2,ISNUMBER(MATCH('${SHEET_LOG_}'!B2:B,'${SHEET_MEMBERS_}'!B2:B,0))),"select Col1, count(Col1) group by Col1 order by count(Col1) desc limit 10 label Col1 '', count(Col1) ''",0),{"\uae30\ub85d\uc5c6\uc74c",0})`
+      `=IFERROR(QUERY(FILTER({'${SHEET_LOG_}'!B2:B,'${SHEET_LOG_}'!A2:A,'${SHEET_LOG_}'!C2:C},'${SHEET_LOG_}'!C2:C="O",'${SHEET_LOG_}'!A2:A<=$B$2,ISNUMBER(MATCH('${SHEET_LOG_}'!B2:B,'${SHEET_MEMBERS_}'!C2:C,0))),"select Col1, count(Col1) group by Col1 order by count(Col1) desc limit 10 label Col1 '', count(Col1) ''",0),{"\uae30\ub85d\uc5c6\uc74c",0})`
   );
   sheet.getRange('R3:R12').setNumberFormat('0');
 
@@ -532,6 +558,16 @@ function normalizeSex_(value) {
 function normalizeYn_(value) {
   const text = String(value || '').trim().toUpperCase();
   return text === 'Y' ? 'Y' : text === 'N' ? 'N' : '';
+}
+
+function normalizeSkillScore_(value) {
+  if (value === '' || value === null || value === undefined) return '';
+
+  const number = Number(value);
+  if (!Number.isFinite(number)) return value;
+  if (number < 0 || number > 100) return value;
+
+  return Math.round(number);
 }
 
 function isStaff_(value) {
