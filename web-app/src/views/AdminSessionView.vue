@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Copy, Play, Sparkles } from "@lucide/vue";
+import { computed, onMounted } from "vue";
+import { Copy, Database, Play, RefreshCw } from "@lucide/vue";
 
 import AppHeader from "@/components/AppHeader.vue";
 import CourtBoard from "@/components/CourtBoard.vue";
@@ -9,6 +10,29 @@ import { PLAY_FREQUENCY_LABELS, effectiveGamesPlayed } from "@/shared/domain";
 import { useSessionStore } from "@/stores/session";
 
 const session = useSessionStore();
+
+const canReloadAttendees = computed(
+  () => !session.hasAssignedCourt && session.completedGameCount === 0 && !session.attendeesLoading,
+);
+
+onMounted(() => {
+  if (session.selectedCount === 0) {
+    void session.loadTodayAttendees();
+  }
+});
+
+function reloadTodayAttendees() {
+  void session.loadTodayAttendees();
+}
+
+function formatFetchedAt(value: string | null): string {
+  if (!value) return "";
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
 </script>
 
 <template>
@@ -16,6 +40,10 @@ const session = useSessionStore();
     <AppHeader />
 
     <section class="toolbar" aria-label="세션 설정">
+      <button class="toolbar-command" :disabled="!canReloadAttendees" type="button" @click="reloadTodayAttendees">
+        <RefreshCw :size="17" />
+        <span>출석기록</span>
+      </button>
       <label class="court-control">
         <span>코트</span>
         <input
@@ -30,7 +58,7 @@ const session = useSessionStore();
 
     <section class="status-strip" aria-label="오늘 상태">
       <div>
-        <span>참석</span>
+        <span>출석</span>
         <strong>{{ session.selectedCount }}</strong>
       </div>
       <div>
@@ -48,7 +76,12 @@ const session = useSessionStore();
     </section>
 
     <div class="primary-actions">
-      <button class="command primary" :disabled="session.hasInProgressCourt" type="button" @click="session.assignInitialCourts">
+      <button
+        class="command primary"
+        :disabled="session.hasInProgressCourt || session.attendeesLoading || session.selectedCount < 4"
+        type="button"
+        @click="session.assignInitialCourts"
+      >
         <Play :size="20" />
         <span>첫 코트 배정</span>
       </button>
@@ -101,11 +134,18 @@ const session = useSessionStore();
 
     <section class="member-panel" aria-label="참석자">
       <div class="section-title">
-        <span>참석자</span>
+        <span>오늘 참석자</span>
         <strong>{{ session.selectedCount }}명</strong>
       </div>
 
-      <div class="member-list">
+      <div v-if="session.attendeesLoading && session.selectedCount === 0" class="empty-state">출석기록 불러오는 중</div>
+      <div v-else-if="session.attendeesError && session.selectedCount === 0" class="empty-state">
+        {{ session.attendeesError }}
+      </div>
+      <div v-else-if="session.selectedCount === 0" class="empty-state">
+        오늘 출석기록에 체크된 참석자가 없습니다.
+      </div>
+      <div v-else class="member-list">
         <article v-for="attendee in session.attendees" :key="attendee.id" class="attendee-row">
           <div class="attendee-main">
             <strong>{{ attendee.name }}</strong>
@@ -122,9 +162,20 @@ const session = useSessionStore();
         </article>
       </div>
 
-      <div class="data-note">
-        <Sparkles :size="17" />
-        <span>지금은 로컬 샘플 참석자입니다. 회원명단 API를 연결하면 같은 화면에 실제 참석자가 들어옵니다.</span>
+      <div class="data-note" :class="{ error: Boolean(session.attendeesError || session.unmatchedAttendanceNames.length) }">
+        <Database :size="17" />
+        <span v-if="session.attendeesError">{{ session.attendeesError }}</span>
+        <span v-else-if="session.attendeesLoading">출석기록을 불러오는 중입니다.</span>
+        <span v-else-if="session.unmatchedAttendanceNames.length">
+          회원명단에 없는 출석자: {{ session.unmatchedAttendanceNames.join(", ") }}
+        </span>
+        <span v-else>
+          출석기록 {{ session.attendanceDate }} · 참석 {{ session.selectedCount }}명 · 회원 {{ session.sourceMembersCount }}명 ·
+          {{ formatFetchedAt(session.attendeesFetchedAt) }}
+        </span>
+        <button v-if="(session.attendeesError || session.unmatchedAttendanceNames.length) && canReloadAttendees" type="button" @click="reloadTodayAttendees">
+          다시 시도
+        </button>
       </div>
     </section>
   </main>

@@ -77,6 +77,12 @@ export interface SessionState {
   title: string;
   courtCount: number;
   attendees: Attendee[];
+  attendeesLoading: boolean;
+  attendeesError: string | null;
+  attendeesFetchedAt: string | null;
+  attendanceDate: string | null;
+  sourceMembersCount: number;
+  unmatchedAttendanceNames: string[];
   courts: CourtState[];
   waitingQueue: Attendee[];
   completedMatches: CompletedMatch[];

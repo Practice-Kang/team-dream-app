@@ -1,8 +1,8 @@
 import { defineStore } from "pinia";
 
 import { generateRound } from "@/matching/generateRound";
+import { fetchTodayAttendees } from "@/services/members";
 import type { Attendee, CourtState, PlayFrequencyPreference, QueueStatus, SessionState } from "@/shared/domain";
-import { createSampleAttendees } from "@/shared/sampleData";
 
 function emptyCourts(count: number): CourtState[] {
   return Array.from({ length: count }, (_, index) => ({
@@ -23,7 +23,13 @@ export const useSessionStore = defineStore("session", {
     id: null,
     title: "오늘 경기",
     courtCount: 3,
-    attendees: createSampleAttendees(),
+    attendees: [],
+    attendeesLoading: false,
+    attendeesError: null,
+    attendeesFetchedAt: null,
+    attendanceDate: null,
+    sourceMembersCount: 0,
+    unmatchedAttendanceNames: [],
     courts: emptyCourts(3),
     waitingQueue: [],
     completedMatches: [],
@@ -39,6 +45,7 @@ export const useSessionStore = defineStore("session", {
     waitingCount: (state) => state.waitingQueue.length,
     completedGameCount: (state) => state.completedMatches.length,
     hasInProgressCourt: (state) => state.courts.some((court) => court.status === "inProgress"),
+    hasAssignedCourt: (state) => state.courts.some((court) => court.match),
     currentRound: (state) => {
       const matches = state.courts.flatMap((court) => (court.match ? [court.match] : []));
       if (matches.length === 0 && state.waitingQueue.length === 0) return null;
@@ -53,6 +60,32 @@ export const useSessionStore = defineStore("session", {
     sharePath: (state) => (state.id ? `/board/${state.id}` : null),
   },
   actions: {
+    async loadTodayAttendees() {
+      if (this.hasAssignedCourt || this.completedMatches.length > 0) return;
+
+      this.attendeesLoading = true;
+      this.attendeesError = null;
+
+      try {
+        const response = await fetchTodayAttendees();
+        this.attendees = response.attendees;
+        this.attendeesFetchedAt = response.fetchedAt;
+        this.attendanceDate = response.attendanceDate;
+        this.sourceMembersCount = response.membersCount;
+        this.unmatchedAttendanceNames = response.unmatchedNames;
+        this.courts = emptyCourts(this.courtCount);
+        this.waitingQueue = [];
+        this.completedMatches = [];
+        this.rounds = [];
+        this.currentRoundIndex = 0;
+        this.matchSequence = 0;
+        this.updatedAt = response.fetchedAt;
+      } catch (error) {
+        this.attendeesError = error instanceof Error ? error.message : "오늘 참석자를 불러오지 못했습니다.";
+      } finally {
+        this.attendeesLoading = false;
+      }
+    },
     setCourtCount(count: number) {
       const nextCount = Math.max(1, Math.floor(count));
       const currentCourts = this.courts.slice(0, nextCount);

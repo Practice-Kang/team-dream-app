@@ -136,7 +136,7 @@ function handleTodayCheckEdit_(e) {
     if (duplicated) {
       sheet.getRange(row, cfg.statusCol).setValue('\uc774\ubbf8\uae30\ub85d\ub428');
     } else {
-      log.appendRow([date, member, 'O', manager, memo, recordedAtText]);
+      appendAttendanceLog_(log, date, member, manager, memo, recordedAtText);
       sheet.getRange(row, cfg.statusCol).setValue('\uae30\ub85d\uc644\ub8cc');
     }
 
@@ -144,6 +144,21 @@ function handleTodayCheckEdit_(e) {
   } finally {
     lock.releaseLock();
   }
+}
+
+function appendAttendanceLog_(log, date, member, manager, memo, recordedAtText) {
+  const nextRow = log.getLastRow() + 1;
+  const sheetDate = toSheetSafeDate_(date);
+
+  log.getRange(nextRow, 1, 1, 6).setValues([[
+    sheetDate,
+    member,
+    'O',
+    manager,
+    memo,
+    recordedAtText,
+  ]]);
+  log.getRange(nextRow, 1).setNumberFormat('yyyy. m. d');
 }
 
 function handleManagementAutomationEdit_(e) {
@@ -594,6 +609,10 @@ function normalizeDateObject_(value) {
   if (!match) return null;
 
   return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+function toSheetSafeDate_(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0);
 }
 
 function normalizeJoinDate_(value) {

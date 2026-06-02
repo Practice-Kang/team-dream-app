@@ -37,6 +37,15 @@ npm run test
 npm run cf:dev
 ```
 
+## 참석자 연동
+
+프론트엔드는 `/api/today-attendees`에서 Google Sheet `출석기록` 기준 오늘 참석자를 JSON으로 받아옵니다.
+
+- 로컬 `npm run dev`: Vite dev middleware가 `회원명단`과 `출석기록` CSV를 읽어 `/api/today-attendees`로 제공합니다.
+- Cloudflare Pages: `functions/api/today-attendees.ts`가 같은 역할을 합니다.
+- 기본 시트 URL은 `src/shared/memberSource.ts`에 있고, Cloudflare에서는 `MEMBERS_SHEET_CSV_URL`, `ATTENDANCE_LOG_SHEET_CSV_URL` 환경변수로 덮어쓸 수 있습니다.
+- `/api/members`는 회원명단 전체 조회용 보조 API로 남겨둡니다.
+
 ## 디렉터리
 
 ```text

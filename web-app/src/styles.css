@@ -83,7 +83,9 @@ button {
 
 .toolbar {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 8px;
   margin-bottom: 12px;
 }
 
@@ -112,6 +114,27 @@ button {
   font-size: 20px;
   font-weight: 900;
   outline: none;
+}
+
+.toolbar-command {
+  display: inline-flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 12px;
+  color: #182026;
+  background: #ffffff;
+  border: 1px solid #d7ddd4;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.toolbar-command:disabled {
+  color: #9aa39f;
+  background: #eef1eb;
+  cursor: not-allowed;
 }
 
 .status-strip {
@@ -547,7 +570,34 @@ button {
   border-radius: 8px;
 }
 
+.data-note.error {
+  color: #8f2f20;
+  background: #fff1ee;
+  border-color: #f1c7bd;
+}
+
+.data-note button {
+  min-height: 32px;
+  margin-left: auto;
+  padding: 0 10px;
+  color: #ffffff;
+  background: #243036;
+  border: 0;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
 @media (max-width: 380px) {
+  .toolbar {
+    align-items: stretch;
+  }
+
+  .toolbar-command {
+    flex: 1;
+  }
+
   .status-strip {
     grid-template-columns: repeat(2, 1fr);
   }
