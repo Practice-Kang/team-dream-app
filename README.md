@@ -30,36 +30,12 @@
 
 ## Apps Script 관리
 
-Google Sheet에 연결된 실제 Apps Script 프로젝트를 `apps-script/sheet-automation`에서 관리합니다. `clasp pull` 결과 실제 코드 파일명은 `KMC.js`입니다.
+Google Sheet에 연결된 Apps Script는 `apps-script/sheet-automation`에서 관리합니다. 자세한 설정과 운영 절차는 [apps-script/sheet-automation/README.md](./apps-script/sheet-automation/README.md)를 참고하세요.
 
-앞으로는 가능하면 Apps Script 편집기에서 직접 수정하기보다, 이 저장소에서 수정하고 git diff로 변경사항을 확인한 뒤 `clasp`로 반영하는 흐름을 권장합니다.
-
-현재 PC의 Node.js `v10.11.0` 환경을 고려해 `apps-script/sheet-automation`은 `@google/clasp@2.3.2`로 고정합니다. Node.js 20 이상으로 올린 뒤에는 최신 clasp로 업그레이드할 수 있습니다.
-
-기본 흐름:
+Apps Script를 수정한 뒤 Google Sheet에 즉시 반영할 때:
 
 ```powershell
 cd apps-script/sheet-automation
-npm install
-npm run login
-Copy-Item .clasp.json.example .clasp.json
-```
-
-그 다음 Google Apps Script 편집기에서 Script ID를 확인해 `.clasp.json`의 `scriptId`를 채웁니다.
-
-원격 Apps Script와 비교하거나 동기화할 때:
-
-```powershell
-npm run status
-npm run pull
-git diff
-```
-
-`npm run pull` 후 `KMC.js`와 `appsscript.json` 외 파일이 생기거나 바뀌면, 실제 Apps Script 편집기에서 파일명이 바뀐 것인지 먼저 확인하세요.
-
-로컬 변경사항을 실제 Apps Script 프로젝트에 반영할 때:
-
-```powershell
 npm run check
 npm run push
 ```
