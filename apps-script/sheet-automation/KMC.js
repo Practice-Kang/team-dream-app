@@ -11,6 +11,7 @@ const SHEET_LOG_ = '\ucd9c\uc11d\uae30\ub85d';
 const SHEET_MANAGEMENT_ = '\uad00\ub9ac \uc790\ub3d9\ud654';
 
 const H_MEMBER_NAME_ = '\ud68c\uc6d0\uba85';
+const H_NO_ = 'No';
 const H_JOIN_DATE_ = '\uac00\uc785\uc77c';
 const H_LEVEL_ = '\uae09\uc218(\uc9c0\uc5ed)';
 const H_LEVEL_LEGACY_ = '\uae09\uc218';
@@ -37,6 +38,10 @@ const STATUS_EXEMPT_ = '\uc608\uc678';
 
 const SEX_MALE_ = '\ub0a8';
 const SEX_FEMALE_ = '\uc5ec';
+
+const API_TOKEN_PROPERTY_ = 'TEAM_DREAM_API_TOKEN';
+const API_ACTION_MEMBERS_ = 'members';
+const API_ACTION_TODAY_ATTENDEES_ = 'today-attendees';
 
 const TODAY_CHECK_CONFIG_ = {
   sheetName: SHEET_TODAY_,
@@ -144,6 +149,177 @@ function handleTodayCheckEdit_(e) {
   } finally {
     lock.releaseLock();
   }
+}
+
+function doGet(e) {
+  const params = (e && e.parameter) || {};
+
+  try {
+    if (!isAuthorizedApiRequest_(params)) {
+      return jsonResponse_({
+        ok: false,
+        message: 'Unauthorized',
+      });
+    }
+
+    const action = String(params.action || 'health').trim();
+
+    if (action === API_ACTION_MEMBERS_) {
+      return jsonResponse_(buildMembersApiResponse_());
+    }
+
+    if (action === API_ACTION_TODAY_ATTENDEES_) {
+      return jsonResponse_(buildTodayAttendeesApiResponse_(params.date));
+    }
+
+    return jsonResponse_({
+      ok: true,
+      service: 'team-dream-sheet-automation',
+      actions: [API_ACTION_MEMBERS_, API_ACTION_TODAY_ATTENDEES_],
+      fetchedAt: isoNow_(),
+    });
+  } catch (error) {
+    return jsonResponse_({
+      ok: false,
+      message: error && error.message ? error.message : String(error),
+    });
+  }
+}
+
+function isAuthorizedApiRequest_(params) {
+  const expectedToken = PropertiesService.getScriptProperties().getProperty(API_TOKEN_PROPERTY_);
+  if (!expectedToken) return true;
+
+  const actualToken = String(params.token || '');
+  return actualToken === expectedToken;
+}
+
+function buildMembersApiResponse_() {
+  const sheet = getRequiredSheet_(SHEET_MEMBERS_);
+  const members = readMembers_(sheet).map(toApiMember_);
+
+  return {
+    ok: true,
+    members,
+    count: members.length,
+    fetchedAt: isoNow_(),
+  };
+}
+
+function buildTodayAttendeesApiResponse_(dateText) {
+  const membersSheet = getRequiredSheet_(SHEET_MEMBERS_);
+  const logSheet = getRequiredSheet_(SHEET_LOG_);
+  const attendanceDate = String(dateText || '').trim() || formatDateKey_(new Date());
+  const fetchedAt = isoNow_();
+
+  const members = readMembers_(membersSheet).map(toApiMember_);
+  const membersByName = {};
+  members.forEach((member) => {
+    membersByName[member.name] = member;
+  });
+
+  const checkedNames = checkedMemberNamesForDate_(readAttendanceRecords_(logSheet), attendanceDate);
+  const attendees = [];
+  const unmatchedNames = [];
+
+  checkedNames.forEach((name) => {
+    const member = membersByName[name];
+    if (!member) {
+      unmatchedNames.push(name);
+      return;
+    }
+
+    attendees.push(toApiAttendee_(member, fetchedAt));
+  });
+
+  return {
+    ok: true,
+    attendees,
+    attendanceDate,
+    attendanceCount: attendees.length,
+    membersCount: members.length,
+    unmatchedNames,
+    fetchedAt,
+  };
+}
+
+function getRequiredSheet_(sheetName) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  if (!sheet) throw new Error(`Sheet not found: ${sheetName}`);
+  return sheet;
+}
+
+function toApiMember_(member, index) {
+  const no = normalizeNo_(member.no) || index + 1;
+  const skillScore = normalizeApiSkillScore_(member.skillScore);
+
+  return {
+    id: `member-${no}`,
+    no,
+    name: String(member.name || ''),
+    joinedAt: formatApiDateValue_(member.joinDate),
+    level: String(member.level || ''),
+    skillScore,
+    gender: member.sex === SEX_MALE_ ? SEX_MALE_ : SEX_FEMALE_,
+    isStaff: isStaff_(member.staff),
+    isExempt: normalizeYn_(member.exempt) === 'Y',
+  };
+}
+
+function toApiAttendee_(member, selectedAt) {
+  return Object.assign({}, member, {
+    selectedAt,
+    playCount: 0,
+    waitCount: 0,
+    playFrequencyPreference: 'normal',
+    queueStatus: 'normal',
+  });
+}
+
+function readAttendanceRecords_(sheet) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+
+  return sheet
+      .getRange(2, 1, lastRow - 1, 6)
+      .getValues()
+      .map((row) => {
+        const date = normalizeDateObject_(row[0]);
+        const memberName = String(row[1] || '').trim();
+        if (!date || !memberName) return null;
+
+        return {
+          dateKey: formatDateKey_(date),
+          memberName,
+          attendance: String(row[2] || '').trim().toUpperCase(),
+          manager: String(row[3] || ''),
+          memo: String(row[4] || ''),
+          recordedAt: formatApiDateTimeValue_(row[5]),
+        };
+      })
+      .filter(Boolean);
+}
+
+function checkedMemberNamesForDate_(records, dateKey) {
+  const seen = {};
+  const names = [];
+
+  records.forEach((record) => {
+    if (record.dateKey !== dateKey) return;
+    if (record.attendance !== 'O') return;
+    if (seen[record.memberName]) return;
+
+    seen[record.memberName] = true;
+    names.push(record.memberName);
+  });
+
+  return names;
+}
+
+function jsonResponse_(payload) {
+  return ContentService
+      .createTextOutput(JSON.stringify(payload))
+      .setMimeType(ContentService.MimeType.JSON);
 }
 
 function appendAttendanceLog_(log, date, member, manager, memo, recordedAtText) {
@@ -255,6 +431,7 @@ function readMembers_(sheet) {
       .map((header) => String(header || '').trim());
   const rows = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
 
+  const noIndex = findHeaderIndex_(headers, H_NO_, 0);
   const nameIndex = findHeaderIndex_(headers, H_MEMBER_NAME_, 1);
   const joinIndex = findHeaderIndex_(headers, H_JOIN_DATE_, 2);
   const levelIndex = findHeaderIndexAny_(headers, [H_LEVEL_, H_LEVEL_LEGACY_], -1);
@@ -277,7 +454,7 @@ function readMembers_(sheet) {
         const colorStaff = isStaffColor_(nameBackgrounds[rowIndex][0]) ? 'Y' : '';
 
         return {
-          no: '',
+          no: normalizeNo_(row[noIndex]) || '',
           name,
           joinDate: normalizeDateObject_(row[joinIndex]) || row[joinIndex],
           level: levelIndex >= 0 ? String(row[levelIndex] || '').trim() : '',
@@ -590,6 +767,16 @@ function normalizeSkillScore_(value) {
   return Math.round(number);
 }
 
+function normalizeApiSkillScore_(value) {
+  const score = normalizeSkillScore_(value);
+  return typeof score === 'number' ? score : null;
+}
+
+function normalizeNo_(value) {
+  const number = Number(value);
+  return Number.isInteger(number) && number > 0 ? number : null;
+}
+
 function isStaff_(value) {
   return String(value || '').trim().toUpperCase() === 'Y';
 }
@@ -630,4 +817,23 @@ function formatDateKey_(date) {
 
 function formatDateTime_(date) {
   return Utilities.formatDate(date, 'Asia/Seoul', 'yyyy. MM. dd. HH:mm:ss');
+}
+
+function formatApiDateValue_(value) {
+  const date = normalizeDateObject_(value);
+  if (!date) return String(value || '');
+
+  return Utilities.formatDate(date, 'Asia/Seoul', 'yyyy. M. d');
+}
+
+function formatApiDateTimeValue_(value) {
+  if (value instanceof Date) {
+    return Utilities.formatDate(value, 'Asia/Seoul', 'yyyy. M. d. HH:mm:ss');
+  }
+
+  return String(value || '');
+}
+
+function isoNow_() {
+  return Utilities.formatDate(new Date(), 'UTC', "yyyy-MM-dd'T'HH:mm:ss'Z'");
 }

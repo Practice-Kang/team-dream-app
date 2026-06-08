@@ -1,7 +1,7 @@
 import { fileURLToPath, URL } from "node:url";
 
 import vue from "@vitejs/plugin-vue";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import type { Plugin } from "vite";
 
 import { todayDateKey } from "./src/shared/dateKey";
@@ -14,6 +14,8 @@ import {
 } from "./src/shared/memberSource";
 import { parseAttendanceLogCsv } from "./src/shared/parseAttendanceLogCsv";
 import { parseMembersCsv } from "./src/shared/parseMembersCsv";
+
+type SheetApiEnv = Record<string, string | undefined>;
 
 async function fetchCsv(url: string): Promise<string> {
   const response = await fetch(url, {
@@ -29,9 +31,44 @@ async function fetchCsv(url: string): Promise<string> {
   return response.text();
 }
 
-function sheetApiDevPlugin(): Plugin {
+async function fetchAppsScriptJson(env: SheetApiEnv, action: string, params: Record<string, string> = {}) {
+  const apiUrl = env.TEAM_DREAM_SHEET_API_URL?.trim();
+  if (!apiUrl) return null;
+
+  const url = new URL(apiUrl);
+  url.searchParams.set("action", action);
+
+  const token = env.TEAM_DREAM_SHEET_API_TOKEN?.trim();
+  if (token) url.searchParams.set("token", token);
+
+  Object.entries(params).forEach(([key, value]) => {
+    url.searchParams.set(key, value);
+  });
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Apps Script returned ${response.status}`);
+  }
+
+  const data = (await response.json()) as { ok?: boolean; message?: string };
+  if (data.ok === false) {
+    throw new Error(data.message || `Apps Script rejected ${action}`);
+  }
+
+  return data;
+}
+
+function sheetApiDevPlugin(env: SheetApiEnv): Plugin {
   return {
     name: "team-dream-sheet-api-dev",
+    config(_, { mode }) {
+      Object.assign(env, loadEnv(mode, fileURLToPath(new URL(".", import.meta.url)), ""));
+    },
     configureServer(server) {
       server.middlewares.use(MEMBERS_API_PATH, async (request, response) => {
         if (request.method !== "GET") {
@@ -42,6 +79,14 @@ function sheetApiDevPlugin(): Plugin {
         }
 
         try {
+          const appsScriptResponse = await fetchAppsScriptJson(env, "members");
+          if (appsScriptResponse) {
+            response.statusCode = 200;
+            response.setHeader("Content-Type", "application/json; charset=utf-8");
+            response.end(JSON.stringify(appsScriptResponse));
+            return;
+          }
+
           const csv = await fetchCsv(MEMBERS_SHEET_CSV_URL);
           const members = parseMembersCsv(csv);
 
@@ -72,6 +117,14 @@ function sheetApiDevPlugin(): Plugin {
         try {
           const requestUrl = new URL(request.url || TODAY_ATTENDEES_API_PATH, "http://localhost");
           const attendanceDate = requestUrl.searchParams.get("date") || todayDateKey();
+          const appsScriptResponse = await fetchAppsScriptJson(env, "today-attendees", { date: attendanceDate });
+          if (appsScriptResponse) {
+            response.statusCode = 200;
+            response.setHeader("Content-Type", "application/json; charset=utf-8");
+            response.end(JSON.stringify(appsScriptResponse));
+            return;
+          }
+
           const [membersCsv, attendanceCsv] = await Promise.all([
             fetchCsv(MEMBERS_SHEET_CSV_URL),
             fetchCsv(ATTENDANCE_LOG_SHEET_CSV_URL),
@@ -93,7 +146,7 @@ function sheetApiDevPlugin(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [sheetApiDevPlugin(), vue()],
+  plugins: [sheetApiDevPlugin({}), vue()],
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
