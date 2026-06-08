@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { LogIn } from "@lucide/vue";
+import { Eye, LogIn } from "@lucide/vue";
 import { useRoute, useRouter } from "vue-router";
 
 import AppHeader from "@/components/AppHeader.vue";
@@ -14,6 +14,7 @@ const id = ref("");
 const password = ref("");
 
 const canSubmit = computed(() => id.value.trim().length > 0 && password.value.length > 0 && !auth.loading);
+const guestBoardPath = computed(() => publicBoardPath(String(route.query.redirect || "")));
 
 async function submitLogin() {
   if (!canSubmit.value) return;
@@ -24,6 +25,23 @@ async function submitLogin() {
   } catch {
     password.value = "";
   }
+}
+
+function publicBoardPath(redirectPath: string): string {
+  const adminSessionId = routeSessionId(redirectPath, "/admin/");
+  if (adminSessionId && adminSessionId !== "new") return `/board/${adminSessionId}`;
+
+  const boardSessionId = routeSessionId(redirectPath, "/board/");
+  if (boardSessionId) return `/board/${boardSessionId}`;
+
+  return "/board/current";
+}
+
+function routeSessionId(path: string, prefix: string): string | null {
+  if (!path.startsWith(prefix)) return null;
+
+  const sessionId = path.slice(prefix.length).split(/[?#/]/)[0];
+  return sessionId ? encodeURIComponent(sessionId) : null;
 }
 </script>
 
@@ -59,6 +77,10 @@ async function submitLogin() {
     <section class="guest-note">
       <strong>회원은 로그인하지 않아도 됩니다</strong>
       <span>공유받은 경기판 링크에서는 코트 현황과 대기 순번만 읽기 전용으로 볼 수 있어요.</span>
+      <RouterLink class="command guest-link" :to="guestBoardPath">
+        <Eye :size="18" />
+        <span>회원 화면으로 보기</span>
+      </RouterLink>
     </section>
   </main>
 </template>

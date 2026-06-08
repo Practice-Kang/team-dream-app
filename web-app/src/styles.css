@@ -670,7 +670,7 @@ button {
 
 .guest-note {
   display: grid;
-  gap: 5px;
+  gap: 8px;
   margin-top: 12px;
   padding: 14px;
 }
@@ -683,6 +683,12 @@ button {
   color: #68746e;
   font-size: 13px;
   font-weight: 800;
+}
+
+.guest-link {
+  min-height: 48px;
+  margin-top: 4px;
+  text-decoration: none;
 }
 
 @media (max-width: 380px) {
