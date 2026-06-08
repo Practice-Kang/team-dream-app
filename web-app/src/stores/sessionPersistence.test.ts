@@ -1,0 +1,117 @@
+import { describe, expect, it } from "vitest";
+
+import type { Attendee, CourtState, SessionState } from "@/shared/domain";
+
+import { createPersistedSessionPayload, restoreSessionState } from "./sessionPersistence";
+
+describe("sessionPersistence", () => {
+  it("restores assigned courts and the waiting queue after JSON serialization", () => {
+    const state = makeSessionState();
+    const payload = createPersistedSessionPayload(state, "2026-06-08T10:00:00.000Z");
+    const serializedPayload = JSON.parse(JSON.stringify(payload));
+
+    const restored = restoreSessionState(serializedPayload, Date.parse("2026-06-08T11:00:00.000Z"));
+
+    expect(restored?.courts[0].status).toBe("assigned");
+    expect(restored?.courts[0].match?.teamA.players.map((player) => player.name)).toEqual(["회원1", "회원2"]);
+    expect(restored?.waitingQueue.map((player) => player.name)).toEqual(["회원5"]);
+    expect(restored?.completedMatches).toHaveLength(1);
+  });
+
+  it("relinks restored court and queue players to the attendee list", () => {
+    const state = makeSessionState();
+    const payload = JSON.parse(JSON.stringify(createPersistedSessionPayload(state, "2026-06-08T10:00:00.000Z")));
+
+    const restored = restoreSessionState(payload, Date.parse("2026-06-08T11:00:00.000Z"));
+
+    expect(restored?.courts[0].match?.teamA.players[0]).toBe(restored?.attendees[0]);
+    expect(restored?.courts[0].match?.teamB.players[1]).toBe(restored?.attendees[3]);
+    expect(restored?.waitingQueue[0]).toBe(restored?.attendees[4]);
+  });
+
+  it("ignores stale saved sessions", () => {
+    const state = makeSessionState();
+    const payload = createPersistedSessionPayload(state, "2026-06-08T10:00:00.000Z");
+
+    const restored = restoreSessionState(payload, Date.parse("2026-06-09T05:00:01.000Z"));
+
+    expect(restored).toBeNull();
+  });
+
+  it("does not restore a previous attendance date even within the storage age limit", () => {
+    const state = {
+      ...makeSessionState(),
+      attendanceDate: "2026-06-06",
+    };
+    const payload = createPersistedSessionPayload(state, "2026-06-06T14:30:00.000Z");
+
+    const restored = restoreSessionState(payload, Date.parse("2026-06-07T01:00:00.000Z"));
+
+    expect(restored).toBeNull();
+  });
+});
+
+function makeSessionState(): SessionState {
+  const attendees = makeAttendees(5);
+  const match = {
+    id: "match-1",
+    courtNumber: 1,
+    teamA: {
+      players: [attendees[0], attendees[1]],
+    },
+    teamB: {
+      players: [attendees[2], attendees[3]],
+    },
+  };
+  const court: CourtState = {
+    courtNumber: 1,
+    status: "assigned",
+    match,
+    assignedAt: "2026-06-08T10:05:00.000Z",
+    startedAt: null,
+  };
+
+  return {
+    id: null,
+    title: "오늘 경기",
+    courtCount: 1,
+    attendees,
+    attendeesLoading: true,
+    attendeesError: "temporary error",
+    attendeesFetchedAt: "2026-06-08T10:00:00.000Z",
+    attendanceDate: "2026-06-08",
+    sourceMembersCount: 5,
+    unmatchedAttendanceNames: [],
+    courts: [court],
+    waitingQueue: [attendees[4]],
+    completedMatches: [
+      {
+        match,
+        completedAt: "2026-06-08T10:30:00.000Z",
+      },
+    ],
+    matchSequence: 1,
+    rounds: [],
+    currentRoundIndex: 0,
+    updatedAt: "2026-06-08T10:05:00.000Z",
+  };
+}
+
+function makeAttendees(count: number): Attendee[] {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `member-${index + 1}`,
+    no: index + 1,
+    name: `회원${index + 1}`,
+    joinedAt: "2026. 1. 1",
+    level: "D",
+    skillScore: 50,
+    gender: index % 2 === 0 ? "남" : "여",
+    isStaff: false,
+    isExempt: false,
+    selectedAt: "2026-06-08T10:00:00.000Z",
+    playCount: 0,
+    waitCount: 0,
+    playFrequencyPreference: "normal",
+    queueStatus: "normal",
+  }));
+}

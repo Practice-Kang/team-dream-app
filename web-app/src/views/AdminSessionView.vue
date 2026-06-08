@@ -1,15 +1,19 @@
 <script setup lang="ts">
 import { computed, onMounted } from "vue";
-import { Copy, Database, Play, RefreshCw } from "@lucide/vue";
+import { Copy, Database, LogOut, Play, RefreshCw } from "@lucide/vue";
+import { useRouter } from "vue-router";
 
 import AppHeader from "@/components/AppHeader.vue";
 import CourtBoard from "@/components/CourtBoard.vue";
 import FrequencyPreferenceControl from "@/components/FrequencyPreferenceControl.vue";
 import PlayCountBadge from "@/components/PlayCountBadge.vue";
 import { PLAY_FREQUENCY_LABELS, effectiveGamesPlayed } from "@/shared/domain";
+import { useAuthStore } from "@/stores/auth";
 import { useSessionStore } from "@/stores/session";
 
 const session = useSessionStore();
+const auth = useAuthStore();
+const router = useRouter();
 
 const canReloadAttendees = computed(
   () => !session.hasAssignedCourt && session.completedGameCount === 0 && !session.attendeesLoading,
@@ -23,6 +27,11 @@ onMounted(() => {
 
 function reloadTodayAttendees() {
   void session.loadTodayAttendees();
+}
+
+async function logout() {
+  await auth.logout();
+  await router.replace("/login");
 }
 
 function formatFetchedAt(value: string | null): string {
@@ -40,6 +49,7 @@ function formatFetchedAt(value: string | null): string {
     <AppHeader />
 
     <section class="toolbar" aria-label="세션 설정">
+      <span class="mode-badge">운영자</span>
       <button class="toolbar-command" :disabled="!canReloadAttendees" type="button" @click="reloadTodayAttendees">
         <RefreshCw :size="17" />
         <span>출석기록</span>
@@ -54,6 +64,9 @@ function formatFetchedAt(value: string | null): string {
           @input="session.setCourtCount(Number(($event.target as HTMLInputElement).value))"
         />
       </label>
+      <button class="toolbar-command icon-only" title="로그아웃" type="button" @click="logout">
+        <LogOut :size="18" />
+      </button>
     </section>
 
     <section class="status-strip" aria-label="오늘 상태">

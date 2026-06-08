@@ -89,6 +89,20 @@ button {
   margin-bottom: 12px;
 }
 
+.mode-badge {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  margin-right: auto;
+  padding: 0 10px;
+  color: #174631;
+  background: #e8f3eb;
+  border: 1px solid #cde4d3;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
 .court-control {
   display: grid;
   width: 104px;
@@ -135,6 +149,11 @@ button {
   color: #9aa39f;
   background: #eef1eb;
   cursor: not-allowed;
+}
+
+.toolbar-command.icon-only {
+  width: 52px;
+  padding: 0;
 }
 
 .status-strip {
@@ -589,6 +608,83 @@ button {
   white-space: nowrap;
 }
 
+.login-screen {
+  display: grid;
+  align-content: start;
+}
+
+.login-panel,
+.guest-note {
+  background: #ffffff;
+  border: 1px solid #d7ddd4;
+  border-radius: 8px;
+}
+
+.login-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.login-form {
+  display: grid;
+  gap: 12px;
+}
+
+.login-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.login-form label span {
+  color: #4f5a54;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.login-form input {
+  min-height: 52px;
+  padding: 0 12px;
+  color: #182026;
+  background: #f8faf5;
+  border: 1px solid #d7ddd4;
+  border-radius: 8px;
+  outline: none;
+}
+
+.login-form input:focus {
+  border-color: #1d7a54;
+  box-shadow: 0 0 0 3px #ddefe3;
+}
+
+.form-error {
+  margin: 0;
+  padding: 10px;
+  color: #8f2f20;
+  background: #fff1ee;
+  border: 1px solid #f1c7bd;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.guest-note {
+  display: grid;
+  gap: 5px;
+  margin-top: 12px;
+  padding: 14px;
+}
+
+.guest-note strong {
+  color: #182026;
+}
+
+.guest-note span {
+  color: #68746e;
+  font-size: 13px;
+  font-weight: 800;
+}
+
 @media (max-width: 380px) {
   .toolbar {
     align-items: stretch;
@@ -596,6 +692,10 @@ button {
 
   .toolbar-command {
     flex: 1;
+  }
+
+  .toolbar-command.icon-only {
+    flex: 0 0 52px;
   }
 
   .status-strip {

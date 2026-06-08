@@ -3,6 +3,7 @@ import { defineStore } from "pinia";
 import { generateRound } from "@/matching/generateRound";
 import { fetchTodayAttendees } from "@/services/members";
 import type { Attendee, CourtState, PlayFrequencyPreference, QueueStatus, SessionState } from "@/shared/domain";
+import { loadSessionStateFromStorage } from "@/stores/sessionPersistence";
 
 function emptyCourts(count: number): CourtState[] {
   return Array.from({ length: count }, (_, index) => ({
@@ -18,8 +19,8 @@ function matchPlayers(match: NonNullable<CourtState["match"]>): Attendee[] {
   return [...match.teamA.players, ...match.teamB.players];
 }
 
-export const useSessionStore = defineStore("session", {
-  state: (): SessionState => ({
+function defaultSessionState(): SessionState {
+  return {
     id: null,
     title: "오늘 경기",
     courtCount: 3,
@@ -37,7 +38,11 @@ export const useSessionStore = defineStore("session", {
     rounds: [],
     currentRoundIndex: 0,
     updatedAt: null,
-  }),
+  };
+}
+
+export const useSessionStore = defineStore("session", {
+  state: (): SessionState => loadSessionStateFromStorage(defaultSessionState()),
   getters: {
     selectedCount: (state) => state.attendees.length,
     playingCount: (state) =>

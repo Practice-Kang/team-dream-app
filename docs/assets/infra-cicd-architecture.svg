@@ -1,0 +1,230 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1200" viewBox="0 0 1800 1200" role="img" aria-labelledby="title desc">
+  <title id="title">꿈꾸민턴 인프라 및 CI/CD 구조도</title>
+  <desc id="desc">GitHub main 브랜치에서 Cloudflare Pages로 배포되고, Cloudflare Pages Functions가 Apps Script Web App을 통해 비공개 Google Sheet를 읽는 구조</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#1f6f5b"/>
+    </marker>
+    <marker id="arrow-blue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#2458b5"/>
+    </marker>
+    <linearGradient id="header" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0f3d3e"/>
+      <stop offset="52%" stop-color="#1f6f5b"/>
+      <stop offset="100%" stop-color="#2458b5"/>
+    </linearGradient>
+    <filter id="shadow" x="-8%" y="-12%" width="116%" height="128%">
+      <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+    <style>
+      .bg { fill: #f7faf8; }
+      .panel { fill: #ffffff; stroke: #d9e2de; stroke-width: 2; rx: 18; filter: url(#shadow); }
+      .panel-soft { fill: #fdfefe; stroke: #dfe8e5; stroke-width: 2; rx: 18; }
+      .panel-green { fill: #f0faf4; stroke: #9fd7b1; stroke-width: 2; rx: 18; }
+      .panel-blue { fill: #f2f7ff; stroke: #a9c6f5; stroke-width: 2; rx: 18; }
+      .panel-yellow { fill: #fff9e8; stroke: #ebd18a; stroke-width: 2; rx: 18; }
+      .panel-red { fill: #fff5f3; stroke: #efb2a5; stroke-width: 2; rx: 18; }
+      .future { fill: #f9fafb; stroke: #aeb8c2; stroke-width: 2; stroke-dasharray: 10 8; rx: 18; }
+      .lane { fill: #edf7f1; stroke: #c9ded4; stroke-width: 2; rx: 22; }
+      .title { font: 800 42px "Pretendard", "Noto Sans KR", "Segoe UI", sans-serif; fill: #ffffff; }
+      .subtitle { font: 500 22px "Pretendard", "Noto Sans KR", "Segoe UI", sans-serif; fill: #dcefed; }
+      .section { font: 800 24px "Pretendard", "Noto Sans KR", "Segoe UI", sans-serif; fill: #123738; }
+      .box-title { font: 800 25px "Pretendard", "Noto Sans KR", "Segoe UI", sans-serif; fill: #142b2d; }
+      .box-sub { font: 600 18px "Pretendard", "Noto Sans KR", "Segoe UI", sans-serif; fill: #526b68; }
+      .body { font: 500 18px "Pretendard", "Noto Sans KR", "Segoe UI", sans-serif; fill: #263f40; }
+      .small { font: 500 16px "Pretendard", "Noto Sans KR", "Segoe UI", sans-serif; fill: #526b68; }
+      .tiny { font: 600 14px "Pretendard", "Noto Sans KR", "Segoe UI", sans-serif; fill: #637a77; }
+      .tag { fill: #0f3d3e; rx: 12; }
+      .tag-text { font: 800 15px "Pretendard", "Noto Sans KR", "Segoe UI", sans-serif; fill: #ffffff; letter-spacing: 0; }
+      .line { stroke: #1f6f5b; stroke-width: 4; fill: none; marker-end: url(#arrow); }
+      .line-blue { stroke: #2458b5; stroke-width: 4; fill: none; marker-end: url(#arrow-blue); }
+      .line-soft { stroke: #9aa9a5; stroke-width: 3; stroke-dasharray: 8 8; fill: none; marker-end: url(#arrow); }
+      .divider { stroke: #d8e4df; stroke-width: 2; }
+      .dot { fill: #1f6f5b; }
+      .muted { fill: #6b7f7b; }
+      .code { font: 700 17px "Cascadia Mono", "Consolas", monospace; fill: #173f42; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1800" height="1200"/>
+  <path d="M0,0 H1800 V104 H0 Z" fill="url(#header)"/>
+  <text class="title" x="70" y="66" fill="#ffffff">꿈꾸민턴 인프라 및 CI/CD 구조도</text>
+  <text class="subtitle" x="70" y="96" fill="#e7f5ef">GitHub main 배포, Cloudflare Pages/Functions, Apps Script Sheet Gateway</text>
+
+  <rect class="lane" x="52" y="126" width="1696" height="236"/>
+  <text class="section" x="82" y="166">CI/CD Pipeline</text>
+
+  <g transform="translate(70 190)">
+    <rect class="panel" x="0" y="0" width="260" height="135"/>
+    <rect class="tag" x="20" y="18" width="92" height="26"/>
+    <text class="tag-text" x="35" y="37">LOCAL</text>
+    <text class="box-title" x="20" y="70">Developer PC</text>
+    <text class="body" x="20" y="101">web-app / apps-script</text>
+    <text class="small" x="20" y="126">test, build, clasp push</text>
+  </g>
+
+  <g transform="translate(395 190)">
+    <rect class="panel" x="0" y="0" width="260" height="135"/>
+    <rect class="tag" x="20" y="18" width="96" height="26"/>
+    <text class="tag-text" x="36" y="37">GIT</text>
+    <text class="box-title" x="20" y="70">GitHub</text>
+    <text class="body" x="20" y="101">Practice-Kang/team-dream-app</text>
+    <text class="small" x="20" y="126">main branch push</text>
+  </g>
+
+  <g transform="translate(720 190)">
+    <rect class="panel-blue" x="0" y="0" width="310" height="135"/>
+    <rect class="tag" x="20" y="18" width="98" height="26"/>
+    <text class="tag-text" x="36" y="37">BUILD</text>
+    <text class="box-title" x="20" y="70">Cloudflare Build</text>
+    <text class="body" x="20" y="101">Root: web-app</text>
+    <text class="small" x="20" y="126">npm run build -> dist</text>
+  </g>
+
+  <g transform="translate(1100 190)">
+    <rect class="panel-blue" x="0" y="0" width="310" height="135"/>
+    <rect class="tag" x="20" y="18" width="112" height="26"/>
+    <text class="tag-text" x="36" y="37">DEPLOY</text>
+    <text class="box-title" x="20" y="70">Pages Production</text>
+    <text class="body" x="20" y="101">Static assets + Functions</text>
+    <text class="small" x="20" y="126">team-dream-app.pages.dev</text>
+  </g>
+
+  <g transform="translate(1470 190)">
+    <rect class="panel-green" x="0" y="0" width="240" height="135"/>
+    <rect class="tag" x="20" y="18" width="98" height="26"/>
+    <text class="tag-text" x="36" y="37">USERS</text>
+    <text class="box-title" x="20" y="70">Mobile Browsers</text>
+    <text class="body" x="20" y="101">KakaoTalk in-app</text>
+    <text class="small" x="20" y="126">Safari / Chrome</text>
+  </g>
+
+  <path class="line" d="M330 258 H390"/>
+  <path class="line" d="M655 258 H715"/>
+  <path class="line-blue" d="M1030 258 H1095"/>
+  <path class="line" d="M1410 258 H1465"/>
+  <text class="tiny" x="337" y="238">git push</text>
+  <text class="tiny" x="662" y="238">auto trigger</text>
+  <text class="tiny" x="1038" y="238">publish</text>
+  <text class="tiny" x="1418" y="238">access</text>
+
+  <rect class="lane" x="52" y="392" width="1696" height="520"/>
+  <text class="section" x="82" y="432">Runtime Data Flow</text>
+
+  <g transform="translate(95 478)">
+    <rect class="panel-green" x="0" y="0" width="300" height="170"/>
+    <rect class="tag" x="22" y="20" width="94" height="26"/>
+    <text class="tag-text" x="37" y="39">CLIENT</text>
+    <text class="box-title" x="22" y="76">운영자 / 멤버</text>
+    <text class="body" x="22" y="110">/admin/new</text>
+    <text class="body" x="22" y="138">/board/:sessionId</text>
+  </g>
+
+  <g transform="translate(475 478)">
+    <rect class="panel-blue" x="0" y="0" width="310" height="170"/>
+    <rect class="tag" x="22" y="20" width="88" height="26"/>
+    <text class="tag-text" x="38" y="39">PAGES</text>
+    <text class="box-title" x="22" y="76">Vue Static App</text>
+    <text class="body" x="22" y="110">Vite build output</text>
+    <text class="body" x="22" y="138">dist/index.html</text>
+  </g>
+
+  <g transform="translate(865 450)">
+    <rect class="panel-blue" x="0" y="0" width="350" height="226"/>
+    <rect class="tag" x="22" y="20" width="112" height="26"/>
+    <text class="tag-text" x="38" y="39">FUNCTION</text>
+    <text class="box-title" x="22" y="76">Pages Functions</text>
+    <text class="code" x="22" y="112">GET /api/health</text>
+    <text class="code" x="22" y="143">GET /api/members</text>
+    <text class="code" x="22" y="174">GET /api/today-attendees</text>
+    <text class="small" x="22" y="207">CSV fallback only for local/public sheet</text>
+  </g>
+
+  <g transform="translate(865 720)">
+    <rect class="panel-yellow" x="0" y="0" width="350" height="140"/>
+    <rect class="tag" x="22" y="20" width="82" height="26"/>
+    <text class="tag-text" x="38" y="39">ENV</text>
+    <text class="box-title" x="22" y="73">Runtime Variables</text>
+    <text class="code" x="22" y="105">TEAM_DREAM_SHEET_API_URL</text>
+    <text class="code" x="22" y="130">TEAM_DREAM_SHEET_API_TOKEN</text>
+  </g>
+
+  <g transform="translate(1300 450)">
+    <rect class="panel-yellow" x="0" y="0" width="350" height="226"/>
+    <rect class="tag" x="22" y="20" width="124" height="26"/>
+    <text class="tag-text" x="38" y="39">GATEWAY</text>
+    <text class="box-title" x="22" y="76">Apps Script Web App</text>
+    <text class="body" x="22" y="112">execute as owner</text>
+    <text class="body" x="22" y="143">action=members</text>
+    <text class="body" x="22" y="174">action=today-attendees</text>
+    <text class="small" x="22" y="207">read-only JSON response</text>
+  </g>
+
+  <g transform="translate(475 720)">
+    <rect class="future" x="0" y="0" width="350" height="140"/>
+    <rect class="tag" x="22" y="20" width="94" height="26"/>
+    <text class="tag-text" x="38" y="39">LATER</text>
+    <text class="box-title" x="22" y="73">Cloudflare D1</text>
+    <text class="body" x="22" y="106">short-lived match sessions</text>
+    <text class="small" x="22" y="132">not connected in current MVP</text>
+  </g>
+
+  <g transform="translate(80 720)">
+    <rect class="panel-soft" x="0" y="0" width="355" height="140"/>
+    <rect class="tag" x="22" y="20" width="106" height="26"/>
+    <text class="tag-text" x="38" y="39">SCRIPT</text>
+    <text class="box-title" x="22" y="73">Apps Script Release Path</text>
+    <text class="body" x="22" y="108">check -> push -> deploy</text>
+    <text class="small" x="22" y="133">Update env if URL changes</text>
+  </g>
+
+  <g transform="translate(1300 720)">
+    <rect class="panel-green" x="0" y="0" width="350" height="140"/>
+    <rect class="tag" x="22" y="20" width="78" height="26"/>
+    <text class="tag-text" x="38" y="39">SHEET</text>
+    <text class="box-title" x="22" y="73">Private Google Sheet</text>
+    <text class="body" x="22" y="106">회원명단 / 출석기록</text>
+    <text class="small" x="22" y="132">read-only source of truth</text>
+  </g>
+
+  <path class="line" d="M395 563 H470"/>
+  <path class="line-blue" d="M785 563 H860"/>
+  <path class="line" d="M1215 563 H1295"/>
+  <path class="line-soft" d="M1040 676 V715"/>
+  <path class="line" d="M1475 676 V715"/>
+  <path class="line-soft" d="M955 676 V700 H825 V715"/>
+  <text class="tiny" x="410" y="543">load app</text>
+  <text class="tiny" x="797" y="543">fetch JSON</text>
+  <text class="tiny" x="1230" y="543">Apps Script URL</text>
+  <text class="tiny" x="1495" y="704">SpreadsheetApp</text>
+  <text class="tiny" x="1060" y="703">uses env</text>
+  <text class="tiny" x="835" y="704">future</text>
+
+  <rect class="panel" x="70" y="950" width="1660" height="170"/>
+  <text class="section" x="100" y="995">Operational Checkpoints</text>
+  <line class="divider" x1="480" y1="1020" x2="480" y2="1095"/>
+  <line class="divider" x1="910" y1="1020" x2="910" y2="1095"/>
+  <line class="divider" x1="1320" y1="1020" x2="1320" y2="1095"/>
+
+  <circle class="dot" cx="103" cy="1035" r="5"/>
+  <text class="body" x="120" y="1042">Build settings</text>
+  <text class="small" x="120" y="1074">Root: web-app, Output: dist</text>
+  <text class="small" x="120" y="1098">Deploy command is empty</text>
+
+  <circle class="dot" cx="513" cy="1035" r="5"/>
+  <text class="body" x="530" y="1042">Environment</text>
+  <text class="small" x="530" y="1074">Production needs TEAM_DREAM_SHEET_API_URL</text>
+  <text class="small" x="530" y="1098">Redeploy after variable changes</text>
+
+  <circle class="dot" cx="943" cy="1035" r="5"/>
+  <text class="body" x="960" y="1042">Troubleshooting</text>
+  <text class="small" x="960" y="1074">CSV 401 means env fallback happened</text>
+  <text class="small" x="960" y="1098">D1 UUID placeholder blocks Function publish</text>
+
+  <circle class="dot" cx="1353" cy="1035" r="5"/>
+  <text class="body" x="1370" y="1042">Security Boundary</text>
+  <text class="small" x="1370" y="1074">Sheet stays private</text>
+  <text class="small" x="1370" y="1098">Add token before wider sharing</text>
+
+  <text class="tiny muted" x="70" y="1160">Generated for Notion docs. Do not embed actual Apps Script URL, Cloudflare token, Google credentials, or member-data exports in the repository.</text>
+</svg>
