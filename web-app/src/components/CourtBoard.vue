@@ -2,15 +2,15 @@
 import { Play, Plus, RefreshCw, Square } from "@lucide/vue";
 
 import PlayCountBadge from "@/components/PlayCountBadge.vue";
-import { useSessionStore } from "@/stores/session";
 import type { CourtState } from "@/shared/domain";
+import { useSessionStore } from "@/stores/session";
 
 const session = useSessionStore();
 
 function statusLabel(status: CourtState["status"]): string {
   if (status === "assigned") return "배정됨";
-  if (status === "inProgress") return "진행중";
-  return "비어있음";
+  if (status === "inProgress") return "진행 중";
+  return "비어 있음";
 }
 </script>
 
@@ -51,7 +51,7 @@ function statusLabel(status: CourtState["status"]): string {
 
         <div v-else class="court-empty">
           <span>현재 배정 없음</span>
-          <small>대기 4명 이상이면 다음 경기를 넣을 수 있어요.</small>
+          <small>다음 경기 조가 있으면 먼저 비는 코트에 바로 들어갑니다.</small>
         </div>
 
         <div class="court-actions">
@@ -85,7 +85,7 @@ function statusLabel(status: CourtState["status"]): string {
           <button
             v-if="court.status === 'empty'"
             class="command"
-            :disabled="session.waitingQueue.length < 4"
+            :disabled="session.upcomingMatches.length === 0 && session.waitingQueue.length < 4"
             type="button"
             @click="session.assignSingleCourt(court.courtNumber)"
           >

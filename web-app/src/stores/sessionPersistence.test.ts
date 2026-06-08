@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import type { Attendee, CourtState, SessionState } from "@/shared/domain";
+import type { Attendee, CourtState, QueuedMatch, SessionState } from "@/shared/domain";
 
 import { createPersistedSessionPayload, restoreSessionState } from "./sessionPersistence";
 
 describe("sessionPersistence", () => {
-  it("restores assigned courts and the waiting queue after JSON serialization", () => {
+  it("restores assigned courts, upcoming matches, and the waiting queue after JSON serialization", () => {
     const state = makeSessionState();
     const payload = createPersistedSessionPayload(state, "2026-06-08T10:00:00.000Z");
     const serializedPayload = JSON.parse(JSON.stringify(payload));
@@ -14,11 +14,12 @@ describe("sessionPersistence", () => {
 
     expect(restored?.courts[0].status).toBe("assigned");
     expect(restored?.courts[0].match?.teamA.players.map((player) => player.name)).toEqual(["회원1", "회원2"]);
-    expect(restored?.waitingQueue.map((player) => player.name)).toEqual(["회원5"]);
+    expect(restored?.upcomingMatches[0].teamA.players.map((player) => player.name)).toEqual(["회원5", "회원6"]);
+    expect(restored?.waitingQueue.map((player) => player.name)).toEqual(["회원9"]);
     expect(restored?.completedMatches).toHaveLength(1);
   });
 
-  it("relinks restored court and queue players to the attendee list", () => {
+  it("relinks restored court, upcoming, and queue players to the attendee list", () => {
     const state = makeSessionState();
     const payload = JSON.parse(JSON.stringify(createPersistedSessionPayload(state, "2026-06-08T10:00:00.000Z")));
 
@@ -26,7 +27,8 @@ describe("sessionPersistence", () => {
 
     expect(restored?.courts[0].match?.teamA.players[0]).toBe(restored?.attendees[0]);
     expect(restored?.courts[0].match?.teamB.players[1]).toBe(restored?.attendees[3]);
-    expect(restored?.waitingQueue[0]).toBe(restored?.attendees[4]);
+    expect(restored?.upcomingMatches[0].teamA.players[0]).toBe(restored?.attendees[4]);
+    expect(restored?.waitingQueue[0]).toBe(restored?.attendees[8]);
   });
 
   it("ignores stale saved sessions", () => {
@@ -52,7 +54,7 @@ describe("sessionPersistence", () => {
 });
 
 function makeSessionState(): SessionState {
-  const attendees = makeAttendees(5);
+  const attendees = makeAttendees(9);
   const match = {
     id: "match-1",
     courtNumber: 1,
@@ -61,6 +63,15 @@ function makeSessionState(): SessionState {
     },
     teamB: {
       players: [attendees[2], attendees[3]],
+    },
+  };
+  const upcomingMatch: QueuedMatch = {
+    id: "queued-1",
+    teamA: {
+      players: [attendees[4], attendees[5]],
+    },
+    teamB: {
+      players: [attendees[6], attendees[7]],
     },
   };
   const court: CourtState = {
@@ -80,17 +91,18 @@ function makeSessionState(): SessionState {
     attendeesError: "temporary error",
     attendeesFetchedAt: "2026-06-08T10:00:00.000Z",
     attendanceDate: "2026-06-08",
-    sourceMembersCount: 5,
+    sourceMembersCount: 9,
     unmatchedAttendanceNames: [],
     courts: [court],
-    waitingQueue: [attendees[4]],
+    upcomingMatches: [upcomingMatch],
+    waitingQueue: [attendees[8]],
     completedMatches: [
       {
         match,
         completedAt: "2026-06-08T10:30:00.000Z",
       },
     ],
-    matchSequence: 1,
+    matchSequence: 2,
     rounds: [],
     currentRoundIndex: 0,
     updatedAt: "2026-06-08T10:05:00.000Z",

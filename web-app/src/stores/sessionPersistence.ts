@@ -1,4 +1,4 @@
-import type { Attendee, CourtState, SessionState } from "@/shared/domain";
+import type { Attendee, CourtState, QueuedMatch, SessionState } from "@/shared/domain";
 import { todayDateKey } from "@/shared/dateKey";
 
 const SESSION_STORAGE_KEY = "team-dream.session.v1";
@@ -69,6 +69,7 @@ export function sanitizeSessionState(state: SessionState): SessionState {
     attendanceDate: state.attendanceDate,
     sourceMembersCount: state.sourceMembersCount,
     courts: normalizeCourts(state.courts, state.courtCount),
+    upcomingMatches: normalizeQueuedMatches(state.upcomingMatches),
     waitingQueue: Array.isArray(state.waitingQueue) ? state.waitingQueue : [],
     completedMatches: Array.isArray(state.completedMatches) ? state.completedMatches : [],
     matchSequence: state.matchSequence,
@@ -99,8 +100,19 @@ function normalizeCourts(courts: CourtState[], courtCount: number): CourtState[]
   }));
 }
 
+function normalizeQueuedMatches(matches: QueuedMatch[] | undefined): QueuedMatch[] {
+  return Array.isArray(matches)
+    ? matches.filter((match) => Array.isArray(match.teamA?.players) && Array.isArray(match.teamB?.players))
+    : [];
+}
+
 function relinkAttendeeReferences(state: SessionState): void {
   const attendeesById = new Map(state.attendees.map((attendee) => [attendee.id, attendee]));
+
+  state.upcomingMatches.forEach((match) => {
+    match.teamA.players = match.teamA.players.map((player) => attendeeReference(player, attendeesById));
+    match.teamB.players = match.teamB.players.map((player) => attendeeReference(player, attendeesById));
+  });
 
   state.waitingQueue = state.waitingQueue.map((player) => attendeeReference(player, attendeesById));
 

@@ -36,6 +36,10 @@ async function logout() {
   await router.replace("/login");
 }
 
+function playerNames(players: { name: string }[]): string {
+  return players.map((player) => player.name).join(" / ");
+}
+
 function formatFetchedAt(value: string | null): string {
   if (!value) return "";
 
@@ -107,9 +111,29 @@ function formatFetchedAt(value: string | null): string {
 
     <CourtBoard />
 
-    <section class="waiting-panel" aria-label="대기 큐">
+    <section class="waiting-panel" aria-label="다음 경기">
       <div class="section-title">
-        <span>대기 큐</span>
+        <span>다음 경기</span>
+        <strong>{{ session.upcomingMatches.length }}게임</strong>
+      </div>
+
+      <div v-if="session.upcomingMatches.length" class="match-list">
+        <article v-for="(match, index) in session.upcomingMatches" :key="match.id" class="match-row">
+          <div class="court-badge">다음 {{ index + 1 }}</div>
+          <div class="teams">
+            <p>{{ playerNames(match.teamA.players) }}</p>
+            <span>vs</span>
+            <p>{{ playerNames(match.teamB.players) }}</p>
+          </div>
+        </article>
+      </div>
+
+      <div v-else class="empty-state">아직 미리 짜둔 다음 경기가 없습니다</div>
+    </section>
+
+    <section class="waiting-panel" aria-label="이후 대기">
+      <div class="section-title">
+        <span>이후 대기</span>
         <strong>{{ session.waitingQueue.length }}명</strong>
       </div>
 
@@ -144,7 +168,7 @@ function formatFetchedAt(value: string | null): string {
         </article>
       </div>
 
-      <div v-else class="empty-state">대기자가 없습니다</div>
+      <div v-else class="empty-state">이후 대기자가 없습니다</div>
     </section>
 
     <section class="member-panel" aria-label="참석자">

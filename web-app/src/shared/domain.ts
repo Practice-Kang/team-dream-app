@@ -46,6 +46,12 @@ export interface Match {
   teamB: Team;
 }
 
+export interface QueuedMatch {
+  id: string;
+  teamA: Team;
+  teamB: Team;
+}
+
 export interface CourtState {
   courtNumber: number;
   status: CourtStatus;
@@ -84,6 +90,7 @@ export interface SessionState {
   sourceMembersCount: number;
   unmatchedAttendanceNames: string[];
   courts: CourtState[];
+  upcomingMatches: QueuedMatch[];
   waitingQueue: Attendee[];
   completedMatches: CompletedMatch[];
   matchSequence: number;
