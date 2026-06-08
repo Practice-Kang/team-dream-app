@@ -175,8 +175,8 @@ export const useSessionStore = defineStore("session", {
         this.syncError = error instanceof Error ? error.message : "공유 경기판을 저장하지 못했습니다.";
       }
     },
-    async loadTodayAttendees() {
-      if (this.hasAssignedCourt || this.completedMatches.length > 0) return;
+    async loadTodayAttendees(options: { resetSession?: boolean } = {}) {
+      if (!options.resetSession && (this.hasAssignedCourt || this.completedMatches.length > 0)) return;
 
       this.attendeesLoading = true;
       this.attendeesError = null;

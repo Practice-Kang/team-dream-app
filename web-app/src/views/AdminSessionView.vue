@@ -15,8 +15,13 @@ const session = useSessionStore();
 const auth = useAuthStore();
 const router = useRouter();
 
-const canReloadAttendees = computed(
-  () => !session.hasAssignedCourt && session.completedGameCount === 0 && !session.attendeesLoading,
+const canReloadAttendees = computed(() => !session.attendeesLoading);
+const hasSessionStateToReset = computed(
+  () =>
+    session.hasAssignedCourt ||
+    session.completedGameCount > 0 ||
+    session.upcomingMatches.length > 0 ||
+    session.waitingQueue.length > 0,
 );
 
 onMounted(async () => {
@@ -28,7 +33,14 @@ onMounted(async () => {
 });
 
 function reloadTodayAttendees() {
-  void session.loadTodayAttendees();
+  if (
+    hasSessionStateToReset.value &&
+    !window.confirm("현재 경기판을 초기화하고 출석기록을 다시 불러올까요?")
+  ) {
+    return;
+  }
+
+  void session.loadTodayAttendees({ resetSession: true });
 }
 
 async function logout() {

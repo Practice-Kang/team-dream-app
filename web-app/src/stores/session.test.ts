@@ -1,15 +1,22 @@
 import { createPinia, setActivePinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { fetchTodayAttendees } from "@/services/members";
 import type { Attendee } from "@/shared/domain";
 
 import { useSessionStore } from "./session";
 
+vi.mock("@/services/members", () => ({
+  fetchTodayAttendees: vi.fn(),
+}));
+
 type MatchLike = { teamA: { players: Attendee[] }; teamB: { players: Attendee[] } };
+const fetchTodayAttendeesMock = vi.mocked(fetchTodayAttendees);
 
 describe("session store upcoming matches", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    fetchTodayAttendeesMock.mockReset();
   });
 
   it("prepares upcoming matches from players not assigned to the current courts", () => {
@@ -81,6 +88,38 @@ describe("session store upcoming matches", () => {
     session.upcomingMatches.forEach((match) => {
       expect(staleGroupKeys.has(groupKey(match))).toBe(false);
     });
+  });
+
+  it("can reset an active session by reloading today's attendance records", async () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+
+    session.setCourtCount(2);
+    session.setAttendees(makeAttendees(16));
+    session.assignInitialCourts();
+    session.startCourt(1);
+    session.finishCourt(1);
+
+    expect(session.hasAssignedCourt).toBe(true);
+    expect(session.completedGameCount).toBe(1);
+    expect(session.upcomingMatches.length).toBeGreaterThan(0);
+
+    fetchTodayAttendeesMock.mockResolvedValue({
+      attendees: makeAttendees(4),
+      attendanceDate: "2026-06-08",
+      attendanceCount: 4,
+      membersCount: 4,
+      unmatchedNames: [],
+      fetchedAt: "2026-06-08T10:00:00.000Z",
+    });
+
+    await session.loadTodayAttendees({ resetSession: true });
+
+    expect(session.selectedCount).toBe(4);
+    expect(session.hasAssignedCourt).toBe(false);
+    expect(session.completedGameCount).toBe(0);
+    expect(session.upcomingMatches).toHaveLength(0);
+    expect(session.waitingQueue).toHaveLength(0);
   });
 });
 
