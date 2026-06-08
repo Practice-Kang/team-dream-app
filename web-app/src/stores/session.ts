@@ -2,8 +2,20 @@ import { defineStore } from "pinia";
 
 import { generateRound } from "@/matching/generateRound";
 import { fetchTodayAttendees } from "@/services/members";
+import { fetchCurrentSession, saveCurrentSession, SessionConflictError } from "@/services/sessions";
 import type { Attendee, CourtState, PlayFrequencyPreference, QueueStatus, SessionState } from "@/shared/domain";
-import { loadSessionStateFromStorage } from "@/stores/sessionPersistence";
+import { CURRENT_SESSION_ID, type RemoteSessionSnapshot } from "@/shared/sessionSource";
+import { loadSessionStateFromStorage, sanitizeSessionState } from "@/stores/sessionPersistence";
+
+type SyncStatus = "idle" | "loading" | "saving" | "error";
+
+interface SessionStoreState extends SessionState {
+  remoteVersion: number | null;
+  syncStatus: SyncStatus;
+  syncError: string | null;
+  lastSyncedAt: string | null;
+  lastPolledAt: string | null;
+}
 
 function emptyCourts(count: number): CourtState[] {
   return Array.from({ length: count }, (_, index) => ({
@@ -41,8 +53,19 @@ function defaultSessionState(): SessionState {
   };
 }
 
+function defaultStoreState(): SessionStoreState {
+  return {
+    ...loadSessionStateFromStorage(defaultSessionState()),
+    remoteVersion: null,
+    syncStatus: "idle",
+    syncError: null,
+    lastSyncedAt: null,
+    lastPolledAt: null,
+  };
+}
+
 export const useSessionStore = defineStore("session", {
-  state: (): SessionState => loadSessionStateFromStorage(defaultSessionState()),
+  state: (): SessionStoreState => defaultStoreState(),
   getters: {
     selectedCount: (state) => state.attendees.length,
     playingCount: (state) =>
@@ -62,9 +85,66 @@ export const useSessionStore = defineStore("session", {
         generatedAt: state.updatedAt ?? "",
       };
     },
-    sharePath: (state) => (state.id ? `/board/${state.id}` : null),
+    sharePath: (state) => `/board/${state.id || CURRENT_SESSION_ID}`,
   },
   actions: {
+    async loadRemoteSession(options: { silent?: boolean } = {}) {
+      if (!options.silent) {
+        this.syncStatus = "loading";
+        this.syncError = null;
+      }
+
+      try {
+        const snapshot = await fetchCurrentSession();
+        this.lastPolledAt = new Date().toISOString();
+
+        if (!snapshot) {
+          if (!options.silent) this.syncStatus = "idle";
+          return false;
+        }
+
+        if (snapshot.version !== this.remoteVersion) {
+          this.applyRemoteSession(snapshot);
+        }
+
+        this.syncStatus = "idle";
+        this.syncError = null;
+        return true;
+      } catch (error) {
+        this.syncStatus = "error";
+        this.syncError = error instanceof Error ? error.message : "공유 경기판을 불러오지 못했습니다.";
+        return false;
+      }
+    },
+    applyRemoteSession(snapshot: RemoteSessionSnapshot) {
+      const state = sanitizeSessionState(snapshot.state);
+
+      Object.assign(this, state, {
+        remoteVersion: snapshot.version,
+        syncStatus: "idle" as SyncStatus,
+        syncError: null,
+        lastSyncedAt: snapshot.updatedAt,
+        lastPolledAt: new Date().toISOString(),
+      });
+    },
+    async persistRemoteSession() {
+      this.syncStatus = "saving";
+      this.syncError = null;
+
+      try {
+        const snapshot = await saveCurrentSession(sanitizeSessionState(this), this.remoteVersion);
+        this.applyRemoteSession(snapshot);
+      } catch (error) {
+        if (error instanceof SessionConflictError) {
+          this.applyRemoteSession(error.snapshot);
+          this.syncError = "공유 경기판이 먼저 변경되어 최신 상태로 다시 맞췄습니다.";
+          return;
+        }
+
+        this.syncStatus = "error";
+        this.syncError = error instanceof Error ? error.message : "공유 경기판을 저장하지 못했습니다.";
+      }
+    },
     async loadTodayAttendees() {
       if (this.hasAssignedCourt || this.completedMatches.length > 0) return;
 
@@ -73,6 +153,7 @@ export const useSessionStore = defineStore("session", {
 
       try {
         const response = await fetchTodayAttendees();
+        this.id = CURRENT_SESSION_ID;
         this.attendees = response.attendees;
         this.attendeesFetchedAt = response.fetchedAt;
         this.attendanceDate = response.attendanceDate;
@@ -85,6 +166,7 @@ export const useSessionStore = defineStore("session", {
         this.currentRoundIndex = 0;
         this.matchSequence = 0;
         this.updatedAt = response.fetchedAt;
+        await this.persistRemoteSession();
       } catch (error) {
         this.attendeesError = error instanceof Error ? error.message : "오늘 참석자를 불러오지 못했습니다.";
       } finally {
@@ -110,9 +192,13 @@ export const useSessionStore = defineStore("session", {
         ...court,
         courtNumber: index + 1,
       }));
+      this.updatedAt = new Date().toISOString();
+      void this.persistRemoteSession();
     },
     setAttendees(attendees: Attendee[]) {
       this.attendees = attendees;
+      this.updatedAt = new Date().toISOString();
+      void this.persistRemoteSession();
     },
     setFrequencyPreference(attendeeId: string, preference: PlayFrequencyPreference) {
       const attendee = this.attendees.find((candidate) => candidate.id === attendeeId);
@@ -120,6 +206,7 @@ export const useSessionStore = defineStore("session", {
 
       attendee.playFrequencyPreference = preference;
       this.updatedAt = new Date().toISOString();
+      void this.persistRemoteSession();
     },
     setQueueStatus(attendeeId: string, status: QueueStatus) {
       const attendee = this.attendees.find((candidate) => candidate.id === attendeeId);
@@ -127,6 +214,7 @@ export const useSessionStore = defineStore("session", {
 
       attendee.queueStatus = attendee.queueStatus === status ? "normal" : status;
       this.updatedAt = new Date().toISOString();
+      void this.persistRemoteSession();
     },
     generateNextRound() {
       this.assignInitialCourts();
@@ -139,9 +227,9 @@ export const useSessionStore = defineStore("session", {
         courtCount: this.courtCount,
         seed: `${this.rounds.length + 1}`,
       });
-
       const assignedAt = new Date().toISOString();
 
+      this.id = CURRENT_SESSION_ID;
       this.courts = emptyCourts(this.courtCount).map((court) => {
         const match = round.matches.find((candidate) => candidate.courtNumber === court.courtNumber) ?? null;
 
@@ -157,6 +245,7 @@ export const useSessionStore = defineStore("session", {
       this.currentRoundIndex = this.rounds.length - 1;
       this.matchSequence += round.matches.length;
       this.updatedAt = assignedAt;
+      void this.persistRemoteSession();
     },
     assignSingleCourt(courtNumber: number) {
       const court = this.courts.find((candidate) => candidate.courtNumber === courtNumber);
@@ -180,6 +269,7 @@ export const useSessionStore = defineStore("session", {
         court.assignedAt = null;
         court.startedAt = null;
         this.updatedAt = assignedAt;
+        void this.persistRemoteSession();
         return;
       }
 
@@ -193,6 +283,7 @@ export const useSessionStore = defineStore("session", {
       this.waitingQueue = round.waiting;
       this.matchSequence += 1;
       this.updatedAt = assignedAt;
+      void this.persistRemoteSession();
     },
     startCourt(courtNumber: number) {
       const court = this.courts.find((candidate) => candidate.courtNumber === courtNumber);
@@ -201,6 +292,7 @@ export const useSessionStore = defineStore("session", {
       court.status = "inProgress";
       court.startedAt = new Date().toISOString();
       this.updatedAt = court.startedAt;
+      void this.persistRemoteSession();
     },
     finishCourt(courtNumber: number) {
       const court = this.courts.find((candidate) => candidate.courtNumber === courtNumber);

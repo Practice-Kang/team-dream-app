@@ -6,6 +6,7 @@ import { defineConfig, loadEnv } from "vite";
 import type { Plugin } from "vite";
 
 import { todayDateKey } from "./src/shared/dateKey";
+import type { SessionState } from "./src/shared/domain";
 import {
   ATTENDANCE_LOG_SHEET_CSV_URL,
   MEMBERS_API_PATH,
@@ -13,12 +14,21 @@ import {
   TODAY_ATTENDEES_API_PATH,
   buildTodayAttendeesResponse,
 } from "./src/shared/memberSource";
+import { CURRENT_SESSION_API_PATH, CURRENT_SESSION_ID } from "./src/shared/sessionSource";
 import { parseAttendanceLogCsv } from "./src/shared/parseAttendanceLogCsv";
 import { parseMembersCsv } from "./src/shared/parseMembersCsv";
 
 type SheetApiEnv = Record<string, string | undefined>;
 
 const DEV_ADMIN_COOKIE_NAME = "team_dream_dev_admin";
+const DEV_SESSION_TTL_MS = 6 * 60 * 60 * 1000;
+
+interface DevSessionSnapshot {
+  state: SessionState;
+  version: number;
+  updatedAt: string;
+  expiresAt: number;
+}
 
 async function fetchCsv(url: string): Promise<string> {
   const response = await fetch(url, {
@@ -67,6 +77,8 @@ async function fetchAppsScriptJson(env: SheetApiEnv, action: string, params: Rec
 }
 
 function sheetApiDevPlugin(env: SheetApiEnv): Plugin {
+  let devSessionSnapshot: DevSessionSnapshot | null = null;
+
   return {
     name: "team-dream-sheet-api-dev",
     config(_, { mode }) {
@@ -123,6 +135,77 @@ function sheetApiDevPlugin(env: SheetApiEnv): Plugin {
 
         response.setHeader("Set-Cookie", `${DEV_ADMIN_COOKIE_NAME}=; Path=/; SameSite=Lax; Max-Age=0`);
         writeJson(response, 200, { authenticated: false, role: "guest" });
+      });
+
+      server.middlewares.use(CURRENT_SESSION_API_PATH, async (request, response) => {
+        if (request.method === "GET") {
+          if (!devSessionSnapshot || Date.now() > devSessionSnapshot.expiresAt) {
+            writeJson(response, 404, { message: "Shared session not found." });
+            return;
+          }
+
+          writeJson(response, 200, {
+            session: devSessionSnapshot.state,
+            version: devSessionSnapshot.version,
+            updatedAt: devSessionSnapshot.updatedAt,
+          });
+          return;
+        }
+
+        if (request.method !== "PUT") {
+          writeJson(response, 405, { message: "Method Not Allowed" });
+          return;
+        }
+
+        if (!devAdminAuthenticated(request)) {
+          writeJson(response, 401, { message: "Admin login is required." });
+          return;
+        }
+
+        try {
+          const body = JSON.parse(await readRequestBody(request)) as {
+            state?: SessionState;
+            version?: number | null;
+          };
+          const requestVersion = typeof body.version === "number" ? body.version : null;
+
+          if (!isSessionState(body.state)) {
+            writeJson(response, 400, { message: "Session state shape is invalid." });
+            return;
+          }
+
+          if (devSessionSnapshot && Date.now() <= devSessionSnapshot.expiresAt && requestVersion !== devSessionSnapshot.version) {
+            writeJson(response, 409, {
+              session: devSessionSnapshot.state,
+              version: devSessionSnapshot.version,
+              updatedAt: devSessionSnapshot.updatedAt,
+            });
+            return;
+          }
+
+          const updatedAt = new Date().toISOString();
+          const state: SessionState = {
+            ...body.state,
+            id: CURRENT_SESSION_ID,
+            attendeesLoading: false,
+            attendeesError: null,
+            updatedAt,
+          };
+          devSessionSnapshot = {
+            state,
+            version: devSessionSnapshot ? devSessionSnapshot.version + 1 : 1,
+            updatedAt,
+            expiresAt: Date.now() + DEV_SESSION_TTL_MS,
+          };
+
+          writeJson(response, 200, {
+            session: devSessionSnapshot.state,
+            version: devSessionSnapshot.version,
+            updatedAt: devSessionSnapshot.updatedAt,
+          });
+        } catch {
+          writeJson(response, 400, { message: "Session request body is invalid." });
+        }
       });
 
       server.middlewares.use(MEMBERS_API_PATH, async (request, response) => {
@@ -202,6 +285,27 @@ function sheetApiDevPlugin(env: SheetApiEnv): Plugin {
 
 function adminCredentialsConfigured(env: SheetApiEnv): boolean {
   return Boolean(env.TEAM_DREAM_ADMIN_ID?.trim() && env.TEAM_DREAM_ADMIN_PASSWORD);
+}
+
+function devAdminAuthenticated(request: IncomingMessage): boolean {
+  return String(request.headers.cookie || "")
+    .split(";")
+    .map((cookie) => cookie.trim())
+    .includes(`${DEV_ADMIN_COOKIE_NAME}=1`);
+}
+
+function isSessionState(value: unknown): value is SessionState {
+  if (!value || typeof value !== "object") return false;
+
+  const state = value as Partial<SessionState>;
+  return (
+    typeof state.title === "string" &&
+    typeof state.courtCount === "number" &&
+    Array.isArray(state.attendees) &&
+    Array.isArray(state.courts) &&
+    Array.isArray(state.waitingQueue) &&
+    Array.isArray(state.completedMatches)
+  );
 }
 
 function readRequestBody(request: IncomingMessage): Promise<string> {

@@ -19,8 +19,10 @@ const canReloadAttendees = computed(
   () => !session.hasAssignedCourt && session.completedGameCount === 0 && !session.attendeesLoading,
 );
 
-onMounted(() => {
-  if (session.selectedCount === 0) {
+onMounted(async () => {
+  const loadedRemoteSession = await session.loadRemoteSession({ silent: true });
+
+  if (!loadedRemoteSession && session.selectedCount === 0) {
     void session.loadTodayAttendees();
   }
 });

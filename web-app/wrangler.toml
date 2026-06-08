@@ -1,3 +1,11 @@
 name = "team-dream-app"
 compatibility_date = "2026-06-02"
 pages_build_output_dir = "dist"
+
+# Create a D1 database named "team-dream-sessions" in Cloudflare, then uncomment
+# and fill in the real database_id before running remote migrations/deploys.
+#
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "team-dream-sessions"
+# database_id = "<cloudflare-d1-database-id>"

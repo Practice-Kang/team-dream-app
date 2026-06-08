@@ -41,7 +41,7 @@ export function restoreSessionState(payload: unknown, now: number): SessionState
   const savedAt = Date.parse(payload.savedAt);
   if (!Number.isFinite(savedAt) || now - savedAt > MAX_PERSISTED_SESSION_AGE_MS) return null;
 
-  const state = sanitizeRestoredState(payload.state);
+  const state = sanitizeSessionState(payload.state);
   if (state.attendanceDate && state.attendanceDate !== todayDateKey(new Date(now))) return null;
 
   relinkAttendeeReferences(state);
@@ -53,19 +53,28 @@ export function createPersistedSessionPayload(state: SessionState, savedAt = new
   return {
     version: SESSION_STORAGE_VERSION,
     savedAt,
-    state: sanitizeRestoredState(state),
+    state: sanitizeSessionState(state),
   };
 }
 
-function sanitizeRestoredState(state: SessionState): SessionState {
+export function sanitizeSessionState(state: SessionState): SessionState {
   return {
-    ...state,
+    id: state.id,
+    title: state.title,
+    courtCount: state.courtCount,
+    attendees: Array.isArray(state.attendees) ? state.attendees : [],
     attendeesLoading: false,
     attendeesError: null,
+    attendeesFetchedAt: state.attendeesFetchedAt,
+    attendanceDate: state.attendanceDate,
+    sourceMembersCount: state.sourceMembersCount,
     courts: normalizeCourts(state.courts, state.courtCount),
     waitingQueue: Array.isArray(state.waitingQueue) ? state.waitingQueue : [],
     completedMatches: Array.isArray(state.completedMatches) ? state.completedMatches : [],
+    matchSequence: state.matchSequence,
     rounds: Array.isArray(state.rounds) ? state.rounds : [],
+    currentRoundIndex: state.currentRoundIndex,
+    updatedAt: state.updatedAt,
     unmatchedAttendanceNames: Array.isArray(state.unmatchedAttendanceNames) ? state.unmatchedAttendanceNames : [],
   };
 }
