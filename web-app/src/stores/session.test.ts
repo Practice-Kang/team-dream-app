@@ -1,9 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Attendee } from "@/shared/domain";
 
 import { useSessionStore } from "./session";
+
+type MatchLike = { teamA: { players: Attendee[] }; teamB: { players: Attendee[] } };
 
 describe("session store upcoming matches", () => {
   beforeEach(() => {
@@ -39,11 +41,56 @@ describe("session store upcoming matches", () => {
     expect(playersOf(session.courts[0].match)).toEqual(firstUpcomingIds);
     expect(session.upcomingMatches).toHaveLength(2);
   });
+
+  it("mixes the remaining upcoming groups with finished players in the common 16-player 2-court case", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+
+    session.setCourtCount(2);
+    session.setAttendees(makeAttendees(16));
+    session.assignInitialCourts();
+
+    const finishedGroupKey = groupKey(session.courts[0].match);
+    const oldRemainingUpcomingKey = groupKey(session.upcomingMatches[1]);
+
+    session.startCourt(1);
+    session.finishCourt(1);
+
+    const nextGroupKeys = session.upcomingMatches.map((match) => groupKey(match));
+    expect(nextGroupKeys).not.toContain(finishedGroupKey);
+    expect(nextGroupKeys).not.toContain(oldRemainingUpcomingKey);
+  });
+
+  it("mixes the remaining upcoming groups with finished players in the common 24-player 3-court case", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+
+    session.setCourtCount(3);
+    session.setAttendees(makeAttendees(24));
+    session.assignInitialCourts();
+
+    const staleGroupKeys = new Set([
+      groupKey(session.courts[0].match),
+      groupKey(session.upcomingMatches[1]),
+      groupKey(session.upcomingMatches[2]),
+    ]);
+
+    session.startCourt(1);
+    session.finishCourt(1);
+
+    session.upcomingMatches.forEach((match) => {
+      expect(staleGroupKeys.has(groupKey(match))).toBe(false);
+    });
+  });
 });
 
-function playersOf(match: { teamA: { players: Attendee[] }; teamB: { players: Attendee[] } } | null): string[] {
+function playersOf(match: MatchLike | null): string[] {
   if (!match) return [];
   return [...match.teamA.players, ...match.teamB.players].map((player) => player.id);
+}
+
+function groupKey(match: MatchLike | null): string {
+  return playersOf(match).sort().join("|");
 }
 
 function makeAttendees(count: number): Attendee[] {

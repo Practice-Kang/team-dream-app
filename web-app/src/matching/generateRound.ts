@@ -6,6 +6,7 @@ export interface GenerateRoundOptions {
   courtCount: number;
   stats?: Record<string, PlayerRoundStats>;
   seed?: string;
+  preserveOrder?: boolean;
 }
 
 export function generateRound(options: GenerateRoundOptions): Round {
@@ -13,15 +14,17 @@ export function generateRound(options: GenerateRoundOptions): Round {
   const gamesPerRound = Math.min(courtCount, Math.floor(options.attendees.length / 4));
   const playersPerRound = gamesPerRound * 4;
 
-  const ordered = [...options.attendees].sort((a, b) => {
-    const priorityDiff = playerPriority(b, options.stats) - playerPriority(a, options.stats);
-    if (priorityDiff !== 0) return priorityDiff;
+  const ordered = options.preserveOrder
+    ? [...options.attendees]
+    : [...options.attendees].sort((a, b) => {
+        const priorityDiff = playerPriority(b, options.stats) - playerPriority(a, options.stats);
+        if (priorityDiff !== 0) return priorityDiff;
 
-    const seededDiff = seededRank(a.id, options.seed) - seededRank(b.id, options.seed);
-    if (seededDiff !== 0) return seededDiff;
+        const seededDiff = seededRank(a.id, options.seed) - seededRank(b.id, options.seed);
+        if (seededDiff !== 0) return seededDiff;
 
-    return a.name.localeCompare(b.name, "ko");
-  });
+        return a.name.localeCompare(b.name, "ko");
+      });
 
   const playing = ordered.slice(0, playersPerRound);
   const waiting = ordered.slice(playersPerRound);
