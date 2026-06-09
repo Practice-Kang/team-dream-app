@@ -125,6 +125,125 @@ describe("session store upcoming matches", () => {
     expect(matchPlayersById(session.courts[0].match, guest.id).every((player) => player.skillScore === 60)).toBe(true);
   });
 
+  it("removes a disabled waiting player without changing the prepared next match and can undo it", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+
+    session.setCourtCount(2);
+    session.setAttendees(makeAttendees(16, "남"));
+    session.assignInitialCourts();
+
+    const preparedGroup = groupKey(session.upcomingMatches[0]);
+    const waitingPlayer = session.waitingQueue[0];
+
+    expect(session.setAttendeeDisabled(waitingPlayer.id, true)).toBe(true);
+
+    expect(session.attendees.find((attendee) => attendee.id === waitingPlayer.id)?.isDisabled).toBe(true);
+    expect(session.waitingQueue.map((player) => player.id)).not.toContain(waitingPlayer.id);
+    expect(groupKey(session.upcomingMatches[0])).toBe(preparedGroup);
+
+    session.undoLastChange();
+
+    expect(session.attendees.find((attendee) => attendee.id === waitingPlayer.id)?.isDisabled).toBeFalsy();
+    expect(session.waitingQueue.map((player) => player.id)).toContain(waitingPlayer.id);
+    expect(groupKey(session.upcomingMatches[0])).toBe(preparedGroup);
+  });
+
+  it("rebuilds future matches without a disabled upcoming player", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+
+    session.setCourtCount(2);
+    session.setAttendees(makeAttendees(16, "남"));
+    session.assignInitialCourts();
+
+    const upcomingPlayer = session.upcomingMatches[0].teamA.players[0];
+
+    expect(session.setAttendeeDisabled(upcomingPlayer.id, true)).toBe(true);
+
+    expect(session.attendees.find((attendee) => attendee.id === upcomingPlayer.id)?.isDisabled).toBe(true);
+    expect(playersOf(session.upcomingMatches[0])).not.toContain(upcomingPlayer.id);
+    expect(session.waitingQueue.map((player) => player.id)).not.toContain(upcomingPlayer.id);
+    expect(session.upcomingMatches).toHaveLength(1);
+    expect(session.waitingQueue).toHaveLength(3);
+  });
+
+  it("replaces a disabled assigned player before the court starts when a future player is available", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+
+    session.setCourtCount(2);
+    session.setAttendees(makeAttendees(16, "남"));
+    session.assignInitialCourts();
+
+    const assignedPlayer = session.courts[0].match?.teamA.players[0];
+    const replacementPlayer = session.upcomingMatches[0].teamA.players[0];
+
+    expect(assignedPlayer).toBeTruthy();
+    expect(replacementPlayer).toBeTruthy();
+    expect(session.setAttendeeDisabled(assignedPlayer?.id ?? "", true)).toBe(true);
+
+    expect(playersOf(session.courts[0].match)).not.toContain(assignedPlayer?.id);
+    expect(playersOf(session.courts[0].match)).toContain(replacementPlayer?.id);
+    expect(playersOf(session.upcomingMatches[0])).not.toContain(assignedPlayer?.id);
+    expect(playersOf(session.upcomingMatches[0])).not.toContain(replacementPlayer?.id);
+  });
+
+  it("does not disable a player from an in-progress court", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+
+    session.setCourtCount(2);
+    session.setAttendees(makeAttendees(8, "남"));
+    session.assignInitialCourts();
+    session.startCourt(1);
+
+    const playingPlayer = session.courts[0].match?.teamA.players[0];
+    const undoCount = session.undoStack.length;
+
+    expect(session.setAttendeeDisabled(playingPlayer?.id ?? "", true)).toBe(false);
+    expect(session.attendees.find((attendee) => attendee.id === playingPlayer?.id)?.isDisabled).toBeFalsy();
+    expect(session.undoStack).toHaveLength(undoCount);
+  });
+
+  it("adds a recovered player back into the waiting flow", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+
+    session.setCourtCount(1);
+    session.setAttendees(makeAttendees(8, "남"));
+    session.assignInitialCourts();
+
+    const upcomingPlayer = session.upcomingMatches[0].teamA.players[0];
+
+    expect(session.setAttendeeDisabled(upcomingPlayer.id, true)).toBe(true);
+    expect(session.upcomingMatches).toHaveLength(0);
+    expect(session.waitingQueue).toHaveLength(3);
+
+    expect(session.setAttendeeDisabled(upcomingPlayer.id, false)).toBe(true);
+
+    expect(session.attendees.find((attendee) => attendee.id === upcomingPlayer.id)?.isDisabled).toBe(false);
+    expect(session.upcomingMatches).toHaveLength(1);
+    expect(session.waitingQueue).toHaveLength(0);
+    expect(playersOf(session.upcomingMatches[0])).toContain(upcomingPlayer.id);
+  });
+
+  it("does not assign disabled attendees to the first courts", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+
+    const attendees = makeAttendees(8, "남");
+    session.setCourtCount(2);
+    session.setAttendees(attendees);
+
+    expect(session.setAttendeeDisabled(attendees[0].id, true)).toBe(true);
+    session.assignInitialCourts();
+
+    expect(session.courts.filter((court) => court.match)).toHaveLength(1);
+    expect(playersOf(session.courts[0].match)).not.toContain(attendees[0].id);
+    expect(session.waitingQueue.map((player) => player.id)).not.toContain(attendees[0].id);
+  });
+
   it("assigns the first upcoming match to the court that finishes first", () => {
     const session = useSessionStore();
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);

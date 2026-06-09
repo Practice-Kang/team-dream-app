@@ -31,6 +31,8 @@ export function membersToAttendees(members: Member[], selectedAt = new Date().to
     playCount: 0,
     waitCount: 0,
     playFrequencyPreference: "normal",
+    isDisabled: false,
+    disabledAt: null,
   }));
 }
 

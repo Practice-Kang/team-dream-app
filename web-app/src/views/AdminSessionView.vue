@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { Copy, Database, LogOut, Pencil, Play, RefreshCw, Undo2 } from "@lucide/vue";
+import { CirclePause, Copy, Database, LogOut, Pencil, Play, RefreshCw, RotateCcw, Undo2 } from "@lucide/vue";
 import { useRouter } from "vue-router";
 
 import AppHeader from "@/components/AppHeader.vue";
@@ -9,7 +9,7 @@ import FrequencyPreferenceControl from "@/components/FrequencyPreferenceControl.
 import GuestAddForm from "@/components/GuestAddForm.vue";
 import MatchEditorSheet from "@/components/MatchEditorSheet.vue";
 import PlayCountBadge from "@/components/PlayCountBadge.vue";
-import { PLAY_FREQUENCY_LABELS, effectiveGamesPlayed, type EditableMatchTarget } from "@/shared/domain";
+import { PLAY_FREQUENCY_LABELS, effectiveGamesPlayed, type Attendee, type EditableMatchTarget } from "@/shared/domain";
 import { useAuthStore } from "@/stores/auth";
 import { useSessionStore } from "@/stores/session";
 
@@ -71,6 +71,24 @@ function playerNames(players: { name: string }[]): string {
 
 function updateGuestSkillScore(attendeeId: string, rawValue: string) {
   session.setGuestSkillScore(attendeeId, Number(rawValue));
+}
+
+function isInProgressAttendee(attendeeId: string): boolean {
+  return session.courts.some(
+    (court) =>
+      court.status === "inProgress" &&
+      court.match &&
+      [...court.match.teamA.players, ...court.match.teamB.players].some((player) => player.id === attendeeId),
+  );
+}
+
+function toggleAttendeeDisabled(attendee: Attendee) {
+  const disabled = !attendee.isDisabled;
+  const changed = session.setAttendeeDisabled(attendee.id, disabled);
+
+  if (!changed) {
+    window.alert("진행 중 경기이거나 교체할 대기자가 부족해서 지금은 변경할 수 없습니다.");
+  }
 }
 
 function formatFetchedAt(value: string | null): string {
@@ -140,7 +158,7 @@ function formatFetchedAt(value: string | null): string {
     <div class="primary-actions">
       <button
         class="command primary"
-        :disabled="session.hasInProgressCourt || session.attendeesLoading || session.selectedCount < 4"
+        :disabled="session.hasInProgressCourt || session.attendeesLoading || session.activeAttendeeCount < 4"
         type="button"
         @click="session.assignInitialCourts"
       >
@@ -212,7 +230,10 @@ function formatFetchedAt(value: string | null): string {
     <section class="member-panel" aria-label="참석자">
       <div class="section-title">
         <span>오늘 참석자</span>
-        <strong>{{ session.selectedCount }}명</strong>
+        <strong>
+          {{ session.activeAttendeeCount }}명 가능
+          <span v-if="session.disabledCount"> · 쉼 {{ session.disabledCount }}</span>
+        </strong>
       </div>
 
       <div v-if="session.attendeesLoading && session.selectedCount === 0" class="empty-state">출석기록 불러오는 중</div>
@@ -223,11 +244,17 @@ function formatFetchedAt(value: string | null): string {
         오늘 출석기록에 체크된 참석자가 없습니다.
       </div>
       <div v-else class="member-list">
-        <article v-for="attendee in session.attendees" :key="attendee.id" class="attendee-row">
+        <article
+          v-for="attendee in session.attendees"
+          :key="attendee.id"
+          class="attendee-row"
+          :class="{ disabled: attendee.isDisabled }"
+        >
           <div class="attendee-main">
             <strong>
               {{ attendee.name }}
               <small v-if="attendee.isGuest" class="inline-chip">게스트</small>
+              <small v-if="attendee.isDisabled" class="inline-chip paused">쉬는중</small>
             </strong>
             <template v-if="attendee.isGuest">
               <span>{{ attendee.gender }} · 게스트</span>
@@ -248,6 +275,26 @@ function formatFetchedAt(value: string | null): string {
           <div class="attendee-count">
             <PlayCountBadge :count="attendee.playCount" />
             <small>보정 {{ effectiveGamesPlayed(attendee).toFixed(1) }}</small>
+          </div>
+          <div class="attendee-actions">
+            <button
+              class="attendee-toggle-command"
+              :class="{ active: attendee.isDisabled }"
+              :disabled="isInProgressAttendee(attendee.id)"
+              :title="
+                isInProgressAttendee(attendee.id)
+                  ? '진행 중 경기는 종료 후 변경 가능'
+                  : attendee.isDisabled
+                    ? '다시 매칭에 포함'
+                    : '미래 매칭에서 잠시 제외'
+              "
+              type="button"
+              @click="toggleAttendeeDisabled(attendee)"
+            >
+              <RotateCcw v-if="attendee.isDisabled" :size="16" />
+              <CirclePause v-else :size="16" />
+              <span>{{ attendee.isDisabled ? "복귀" : "쉬기" }}</span>
+            </button>
           </div>
           <FrequencyPreferenceControl
             :model-value="attendee.playFrequencyPreference"

@@ -59,6 +59,7 @@ const candidates = computed(() => {
 
   const addPlayer = (player: Attendee, source: string) => {
     if (seenIds.has(player.id)) return;
+    if (player.isDisabled) return;
     seenIds.add(player.id);
     if (keyword && !player.name.includes(keyword)) return;
 

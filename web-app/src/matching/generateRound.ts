@@ -25,9 +25,10 @@ interface GenderUsePlan {
 
 export function generateRound(options: GenerateRoundOptions): Round {
   const courtCount = Math.max(0, Math.floor(options.courtCount));
-  const gamesPerRound = Math.min(courtCount, Math.floor(options.attendees.length / 4));
+  const activeAttendees = options.attendees.filter((attendee) => !attendee.isDisabled);
+  const gamesPerRound = Math.min(courtCount, Math.floor(activeAttendees.length / 4));
 
-  const ordered = [...options.attendees]
+  const ordered = activeAttendees
     .map((attendee, index) => ({ attendee, index }))
     .sort((a, b) => {
         const selectionScoreDiff = playerSelectionScore(b.attendee, options.stats) - playerSelectionScore(a.attendee, options.stats);

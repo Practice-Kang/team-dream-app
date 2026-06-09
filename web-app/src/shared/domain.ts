@@ -32,6 +32,8 @@ export interface Attendee extends Member {
   playCount: number;
   waitCount: number;
   playFrequencyPreference: PlayFrequencyPreference;
+  isDisabled?: boolean;
+  disabledAt?: string | null;
 }
 
 export interface GuestAttendeeInput {

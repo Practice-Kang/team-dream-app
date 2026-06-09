@@ -98,6 +98,8 @@ export const useSessionStore = defineStore("session", {
   state: (): SessionStoreState => defaultStoreState(),
   getters: {
     selectedCount: (state) => state.attendees.length,
+    activeAttendeeCount: (state) => state.attendees.filter((attendee) => isActiveAttendee(attendee)).length,
+    disabledCount: (state) => state.attendees.filter((attendee) => attendee.isDisabled).length,
     playingCount: (state) =>
       state.courts.reduce((count, court) => count + (court.match ? matchPlayers(court.match).length : 0), 0),
     upcomingPlayerCount: (state) =>
@@ -285,6 +287,50 @@ export const useSessionStore = defineStore("session", {
       void this.persistRemoteSession();
       return true;
     },
+    setAttendeeDisabled(attendeeId: string, disabled: boolean) {
+      const attendee = this.attendees.find((candidate) => candidate.id === attendeeId);
+      if (!attendee || Boolean(attendee.isDisabled) === disabled) return true;
+      if (disabled && isPlayerInInProgressCourt(this, attendeeId)) return false;
+
+      const futurePlayers = uniqueActivePlayers(
+        [...this.upcomingMatches.flatMap((match) => matchPlayers(match)), ...this.waitingQueue].filter(
+          (player) => player.id !== attendeeId,
+        ),
+      );
+      const currentLocation = disabled ? findEditablePlayerLocation(this, attendeeId) : null;
+      const assignedCourt = disabled ? findAssignedCourtWithPlayer(this, attendeeId) : null;
+      const replacement = assignedCourt ? futurePlayers.shift() : null;
+
+      if (assignedCourt && !replacement) return false;
+
+      const changedAt = new Date().toISOString();
+      this.pushUndo(disabled ? "참석자 쉬기 전" : "참석자 복귀 전");
+      updateAttendeeDisabledEverywhere(this, attendeeId, disabled, disabled ? changedAt : null);
+
+      if (disabled) {
+        if (assignedCourt?.match && replacement) {
+          replacePlayerByIdInMatch(assignedCourt.match, attendeeId, replacement);
+          rebalanceMatchTeams(assignedCourt.match);
+          this.rebuildUpcomingMatchesFromGroups([futurePlayers], { preserveOrder: true });
+        } else if (currentLocation?.kind === "waiting") {
+          this.waitingQueue = this.waitingQueue.filter((player) => player.id !== attendeeId);
+          if (this.upcomingMatches.length === 0 && this.waitingQueue.length >= 4) {
+            this.rebuildUpcomingMatchesFromGroups([this.waitingQueue]);
+          }
+        } else if (currentLocation?.kind === "match") {
+          this.rebuildUpcomingMatchesFromGroups([futurePlayers], { preserveOrder: true });
+        }
+      } else if (hasBuiltMatchPlan(this) && !findEditablePlayerLocation(this, attendeeId)) {
+        this.waitingQueue.push(attendee);
+        if (this.upcomingMatches.length === 0 && this.waitingQueue.length >= 4) {
+          this.rebuildUpcomingMatchesFromGroups([this.waitingQueue]);
+        }
+      }
+
+      this.updatedAt = changedAt;
+      void this.persistRemoteSession();
+      return true;
+    },
     setFrequencyPreference(attendeeId: string, preference: PlayFrequencyPreference) {
       const attendee = this.attendees.find((candidate) => candidate.id === attendeeId);
       if (!attendee || attendee.playFrequencyPreference === preference) return;
@@ -300,9 +346,13 @@ export const useSessionStore = defineStore("session", {
     assignInitialCourts() {
       if (this.hasInProgressCourt) return;
 
-      this.pushUndo(this.hasAssignedCourt || this.upcomingMatches.length > 0 || this.waitingQueue.length > 0 ? "코트 재배정 전" : "첫 코트 배정 전");
+      this.pushUndo(
+        this.hasAssignedCourt || this.upcomingMatches.length > 0 || this.waitingQueue.length > 0
+          ? "코트 재배정 전"
+          : "첫 코트 배정 전",
+      );
       const round = generateRound({
-        attendees: this.attendees,
+        attendees: this.attendees.filter((attendee) => isActiveAttendee(attendee)),
         courtCount: this.courtCount,
         seed: `${this.rounds.length + 1}`,
       });
@@ -426,7 +476,7 @@ export const useSessionStore = defineStore("session", {
       if (currentPlayer.id === replacementId) return true;
 
       const replacementLocation = findEditablePlayerLocation(this, replacementId);
-      if (!replacementLocation || replacementLocation.kind === "locked") return false;
+      if (!replacementLocation || replacementLocation.kind === "locked" || replacementLocation.player.isDisabled) return false;
 
       this.pushUndo("경기 수정 전");
       targetMatch[slot.team].players[slot.playerIndex] = replacementLocation.player;
@@ -448,7 +498,8 @@ export const useSessionStore = defineStore("session", {
       this.undoStack = appendUndoEntry(this.undoStack, createUndoEntry(this, label));
     },
     rebuildUpcomingMatchesFromGroups(groups: Attendee[][], options: { preserveOrder?: boolean } = {}) {
-      const idlePlayers = options.preserveOrder === false ? groups.flat() : interleavePlayerGroups(groups);
+      const rawIdlePlayers = options.preserveOrder === false ? groups.flat() : interleavePlayerGroups(groups);
+      const idlePlayers = uniqueActivePlayers(rawIdlePlayers);
       const gameCount = Math.floor(idlePlayers.length / 4);
       this.upcomingMatches = [];
 
@@ -502,6 +553,23 @@ function appendUndoEntry<T>(stack: T[], entry: T): T[] {
   return [...stack, entry].slice(-MAX_UNDO_STACK_SIZE);
 }
 
+function isActiveAttendee(attendee: Attendee): boolean {
+  return !attendee.isDisabled;
+}
+
+function uniqueActivePlayers(players: Attendee[]): Attendee[] {
+  const seenIds = new Set<string>();
+  const uniquePlayers: Attendee[] = [];
+
+  players.forEach((player) => {
+    if (!isActiveAttendee(player) || seenIds.has(player.id)) return;
+    seenIds.add(player.id);
+    uniquePlayers.push(player);
+  });
+
+  return uniquePlayers;
+}
+
 function hasMeaningfulSession(state: SessionState): boolean {
   return (
     state.attendees.length > 0 ||
@@ -543,11 +611,43 @@ function createGuestAttendee(input: GuestAttendeeInput): Attendee | null {
     playCount: 0,
     waitCount: 0,
     playFrequencyPreference: "normal",
+    isDisabled: false,
+    disabledAt: null,
   };
 }
 
 function normalizeSkillScore(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function updateAttendeeDisabledEverywhere(
+  state: SessionState,
+  attendeeId: string,
+  isDisabled: boolean,
+  disabledAt: string | null,
+): void {
+  const updatePlayers = (players: Attendee[]) => {
+    players.forEach((player) => {
+      if (player.id === attendeeId) {
+        player.isDisabled = isDisabled;
+        player.disabledAt = disabledAt;
+      }
+    });
+  };
+
+  updatePlayers(state.attendees);
+  updatePlayers(state.waitingQueue);
+
+  state.courts.forEach((court) => {
+    if (court.match) updatePlayers(matchPlayers(court.match));
+  });
+
+  state.upcomingMatches.forEach((match) => updatePlayers(matchPlayers(match)));
+  state.completedMatches.forEach((completedMatch) => updatePlayers(matchPlayers(completedMatch.match)));
+  state.rounds.forEach((round) => {
+    round.matches.forEach((match) => updatePlayers(matchPlayers(match)));
+    updatePlayers(round.waiting);
+  });
 }
 
 function updateGuestSkillScoreEverywhere(state: SessionState, attendeeId: string, skillScore: number): void {
@@ -586,6 +686,34 @@ function rebalanceEditableMatchesContainingPlayer(state: SessionState, attendeeI
       rebalanceMatchTeams(match);
     }
   });
+}
+
+function isPlayerInInProgressCourt(state: SessionState, playerId: string): boolean {
+  return state.courts.some(
+    (court) =>
+      court.status === "inProgress" &&
+      court.match &&
+      matchPlayers(court.match).some((player) => player.id === playerId),
+  );
+}
+
+function findAssignedCourtWithPlayer(state: SessionState, playerId: string): CourtState | null {
+  return (
+    state.courts.find(
+      (court) =>
+        court.status === "assigned" &&
+        court.match &&
+        matchPlayers(court.match).some((player) => player.id === playerId),
+    ) ?? null
+  );
+}
+
+function replacePlayerByIdInMatch(match: Match | QueuedMatch, playerId: string, replacement: Attendee): boolean {
+  const location = findPlayerInMatch(match, playerId);
+  if (!location) return false;
+
+  location.match[location.slot.team].players[location.slot.playerIndex] = replacement;
+  return true;
 }
 
 function editableMatchForTarget(state: SessionState, target: EditableMatchTarget): Match | QueuedMatch | null {

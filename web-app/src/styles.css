@@ -769,6 +769,11 @@ button {
   vertical-align: middle;
 }
 
+.inline-chip.paused {
+  color: #7d4e1c;
+  background: #fff1d8;
+}
+
 .attendee-main .inline-chip,
 .candidate-main .inline-chip,
 .editor-slot .inline-chip,
@@ -807,6 +812,11 @@ button {
   padding: 12px;
 }
 
+.attendee-row.disabled {
+  background: #fbfaf5;
+  border-color: #eadcc4;
+}
+
 .attendee-main,
 .attendee-count,
 .queue-body {
@@ -836,6 +846,39 @@ button {
 
 .attendee-count {
   justify-items: end;
+}
+
+.attendee-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.attendee-toggle-command {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  color: #5a4634;
+  background: #fff8eb;
+  border: 1px solid #ead6b8;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.attendee-toggle-command.active {
+  color: #ffffff;
+  background: #1d7a54;
+  border-color: #1d7a54;
+}
+
+.attendee-toggle-command:disabled {
+  color: #9aa39f;
+  background: #eef1eb;
+  border-color: #dfe5db;
+  cursor: not-allowed;
 }
 
 .attendee-row .frequency-control {
@@ -1085,5 +1128,13 @@ button {
 
   .attendee-count {
     justify-items: stretch;
+  }
+
+  .attendee-actions {
+    justify-content: stretch;
+  }
+
+  .attendee-toggle-command {
+    width: 100%;
   }
 }
