@@ -347,11 +347,12 @@ export const useSessionStore = defineStore("session", {
       court.startedAt = null;
 
       const assigned = this.assignNextQueuedMatchToCourt(court, completedAt);
-      this.rebuildUpcomingMatchesFromGroups([
+      const idlePlayers = interleavePlayerGroups([
         ...this.upcomingMatches.map((match) => matchPlayers(match)),
         this.waitingQueue,
         finishedPlayers,
       ]);
+      this.rebuildUpcomingMatchesFromGroups([idlePlayers]);
 
       if (!assigned) {
         this.assignNextQueuedMatchToCourt(court, completedAt);

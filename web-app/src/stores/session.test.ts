@@ -24,7 +24,7 @@ describe("session store upcoming matches", () => {
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
 
     session.setCourtCount(2);
-    session.setAttendees(makeAttendees(16));
+    session.setAttendees(makeAttendees(16, "남"));
     session.assignInitialCourts();
 
     expect(session.courts.filter((court) => court.match)).toHaveLength(2);
@@ -37,7 +37,7 @@ describe("session store upcoming matches", () => {
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
 
     session.setCourtCount(2);
-    session.setAttendees(makeAttendees(16));
+    session.setAttendees(makeAttendees(16, "남"));
     session.assignInitialCourts();
 
     const firstUpcomingIds = playersOf(session.upcomingMatches[0]);
@@ -54,7 +54,7 @@ describe("session store upcoming matches", () => {
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
 
     session.setCourtCount(2);
-    session.setAttendees(makeAttendees(16));
+    session.setAttendees(makeAttendees(16, "남"));
     session.assignInitialCourts();
 
     const finishedGroupKey = groupKey(session.courts[0].match);
@@ -68,12 +68,31 @@ describe("session store upcoming matches", () => {
     expect(nextGroupKeys).not.toContain(oldRemainingUpcomingKey);
   });
 
+  it("rebuilds same-gender queued matches from interleaved player groups", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+    const oldGroupA = [3, 9, 5, 7].map((no) => makeAttendees(16, "남")[no - 1]);
+    const oldGroupB = [10, 16, 12, 14].map((no) => ({
+      ...makeAttendees(16, "남")[no - 1],
+      playCount: 1,
+    }));
+
+    const interleaved = [oldGroupA[0], oldGroupB[0], oldGroupA[1], oldGroupB[1], oldGroupA[2], oldGroupB[2], oldGroupA[3], oldGroupB[3]];
+
+    session.rebuildUpcomingMatchesFromGroups([interleaved]);
+
+    const nextGroupKeys = session.upcomingMatches.map((match) => groupKey(match));
+
+    expect(nextGroupKeys).not.toContain(oldGroupA.map((player) => player.id).sort().join("|"));
+    expect(nextGroupKeys).not.toContain(oldGroupB.map((player) => player.id).sort().join("|"));
+  });
+
   it("mixes the remaining upcoming groups with finished players in the common 24-player 3-court case", () => {
     const session = useSessionStore();
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
 
     session.setCourtCount(3);
-    session.setAttendees(makeAttendees(24));
+    session.setAttendees(makeAttendees(24, "남"));
     session.assignInitialCourts();
 
     const staleGroupKeys = new Set([
@@ -132,7 +151,7 @@ function groupKey(match: MatchLike | null): string {
   return playersOf(match).sort().join("|");
 }
 
-function makeAttendees(count: number): Attendee[] {
+function makeAttendees(count: number, gender?: "남" | "여"): Attendee[] {
   return Array.from({ length: count }, (_, index) => ({
     id: `member-${index + 1}`,
     no: index + 1,
@@ -140,7 +159,7 @@ function makeAttendees(count: number): Attendee[] {
     joinedAt: "2026. 1. 1",
     level: "",
     skillScore: 50 + (index % 5),
-    gender: index % 2 === 0 ? "남" : "여",
+    gender: gender ?? (index % 2 === 0 ? "남" : "여"),
     isStaff: false,
     isExempt: false,
     selectedAt: "2026-06-08T00:00:00.000Z",

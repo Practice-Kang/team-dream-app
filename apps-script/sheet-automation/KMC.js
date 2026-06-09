@@ -443,7 +443,10 @@ function readMembers_(sheet) {
   const staffIndex = findHeaderIndex_(headers, H_STAFF_, -1);
   const exemptIndex = findHeaderIndex_(headers, H_EXEMPT_, staffIndex >= 0 ? 5 : 4);
   const memoIndex = findHeaderIndexAny_(headers, [H_NOTE_, H_MEMO_], staffIndex >= 0 ? 6 : 5);
-  const nameBackgrounds = sheet.getRange(2, nameIndex + 1, lastRow - 1, 1).getBackgrounds();
+  const useLegacyStaffColor = staffIndex < 0;
+  const nameBackgrounds = useLegacyStaffColor
+      ? sheet.getRange(2, nameIndex + 1, lastRow - 1, 1).getBackgrounds()
+      : [];
 
   return rows
       .map((row, rowIndex) => {
@@ -451,7 +454,7 @@ function readMembers_(sheet) {
         if (!name) return null;
 
         const explicitStaff = staffIndex >= 0 ? normalizeYn_(row[staffIndex]) : '';
-        const colorStaff = isStaffColor_(nameBackgrounds[rowIndex][0]) ? 'Y' : '';
+        const colorStaff = useLegacyStaffColor && isStaffColor_(nameBackgrounds[rowIndex][0]) ? 'Y' : '';
 
         return {
           no: normalizeNo_(row[noIndex]) || '',

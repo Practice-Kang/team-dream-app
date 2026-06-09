@@ -50,6 +50,76 @@ describe("generateRound", () => {
     expect(playingIds.has(attendees[1].id)).toBe(true);
     expect(round.waiting.map((player) => player.id)).toContain(attendees[0].id);
   });
+
+  it("prefers men's and women's doubles before mixed games", () => {
+    const attendees = [...makeGenderedAttendees(8, "남", 1), ...makeGenderedAttendees(8, "여", 9)];
+
+    const round = generateRound({
+      attendees,
+      courtCount: 4,
+      seed: "gender-doubles",
+    });
+
+    expect(round.matches).toHaveLength(4);
+    expect(round.matches.every((match) => new Set(playersOf(match).map((player) => player.gender)).size === 1)).toBe(
+      true,
+    );
+  });
+
+  it("uses a mixed match only for a stranded gender group", () => {
+    const attendees = [...makeGenderedAttendees(12, "남", 1), ...makeGenderedAttendees(1, "여", 13)];
+
+    const round = generateRound({
+      attendees,
+      courtCount: 3,
+      seed: "stranded-gender",
+    });
+
+    const genderCounts = round.matches.map((match) => countMatchGenders(match));
+
+    expect(round.matches).toHaveLength(3);
+    expect(genderCounts.filter((counts) => counts.남 === 4 && counts.여 === 0)).toHaveLength(2);
+    expect(genderCounts).toContainEqual({ 남: 3, 여: 1 });
+    expect(round.waiting).toHaveLength(1);
+    expect(round.waiting[0].gender).toBe("남");
+  });
+
+  it("keeps mixed-match teams gender-balanced without treating male and female scores as the same scale", () => {
+    const attendees = [
+      makeAttendee(1, "남", 100),
+      makeAttendee(2, "남", 40),
+      makeAttendee(3, "여", 100),
+      makeAttendee(4, "여", 40),
+    ];
+
+    const round = generateRound({
+      attendees,
+      courtCount: 1,
+      seed: "mixed-balance",
+    });
+
+    const [match] = round.matches;
+
+    expect(match.teamA.players.map((player) => player.gender).sort()).toEqual(["남", "여"]);
+    expect(match.teamB.players.map((player) => player.gender).sort()).toEqual(["남", "여"]);
+  });
+
+  it("breaks same-gender groups when an interleaved waiting queue is preserved", () => {
+    const oldGroupA = [3, 5, 7, 9].map((no) => makeAttendee(no, "남", 50));
+    const oldGroupB = [10, 12, 14, 16].map((no) => makeAttendee(no, "남", 50));
+    const attendees = [oldGroupA[0], oldGroupB[0], oldGroupA[1], oldGroupB[1], oldGroupA[2], oldGroupB[2], oldGroupA[3], oldGroupB[3]];
+
+    const round = generateRound({
+      attendees,
+      courtCount: 2,
+      preserveOrder: true,
+    });
+
+    const groupKeys = round.matches.map(groupKey);
+
+    expect(groupKeys).not.toContain(oldGroupA.map((player) => player.id).sort().join("|"));
+    expect(groupKeys).not.toContain(oldGroupB.map((player) => player.id).sort().join("|"));
+  });
 });
 
 function makeAttendees(count: number): Attendee[] {
@@ -69,4 +139,48 @@ function makeAttendees(count: number): Attendee[] {
     playFrequencyPreference: "normal",
     queueStatus: "normal",
   }));
+}
+
+function makeGenderedAttendees(count: number, gender: "남" | "여", startNo: number): Attendee[] {
+  return Array.from({ length: count }, (_, index) => makeAttendee(startNo + index, gender, 50 + (index % 5)));
+}
+
+function makeAttendee(no: number, gender: "남" | "여", skillScore: number): Attendee {
+  return {
+    id: `member-${no}`,
+    no,
+    name: `회원${no}`,
+    joinedAt: "2026. 1. 1",
+    level: "",
+    skillScore,
+    gender,
+    isStaff: false,
+    isExempt: false,
+    selectedAt: "2026-06-02T00:00:00.000Z",
+    playCount: 0,
+    waitCount: 0,
+    playFrequencyPreference: "normal",
+    queueStatus: "normal",
+  };
+}
+
+function playersOf(match: { teamA: { players: Attendee[] }; teamB: { players: Attendee[] } }): Attendee[] {
+  return [...match.teamA.players, ...match.teamB.players];
+}
+
+function groupKey(match: { teamA: { players: Attendee[] }; teamB: { players: Attendee[] } }): string {
+  return playersOf(match)
+    .map((player) => player.id)
+    .sort()
+    .join("|");
+}
+
+function countMatchGenders(match: { teamA: { players: Attendee[] }; teamB: { players: Attendee[] } }) {
+  return playersOf(match).reduce(
+    (counts, player) => ({
+      ...counts,
+      [player.gender]: counts[player.gender] + 1,
+    }),
+    { 남: 0, 여: 0 },
+  );
 }
