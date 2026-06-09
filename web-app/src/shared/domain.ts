@@ -1,6 +1,5 @@
 export type Gender = "남" | "여";
 export type PlayFrequencyPreference = "high" | "normal" | "low";
-export type QueueStatus = "normal" | "priority" | "hold";
 export type CourtStatus = "empty" | "assigned" | "inProgress";
 
 export const PLAY_FREQUENCY_WEIGHTS: Record<PlayFrequencyPreference, number> = {
@@ -32,7 +31,6 @@ export interface Attendee extends Member {
   playCount: number;
   waitCount: number;
   playFrequencyPreference: PlayFrequencyPreference;
-  queueStatus: QueueStatus;
 }
 
 export interface Team {

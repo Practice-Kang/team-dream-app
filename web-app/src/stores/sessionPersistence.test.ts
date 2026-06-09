@@ -157,6 +157,5 @@ function makeAttendees(count: number): Attendee[] {
     playCount: 0,
     waitCount: 0,
     playFrequencyPreference: "normal",
-    queueStatus: "normal",
   }));
 }

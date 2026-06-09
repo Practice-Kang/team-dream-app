@@ -249,7 +249,6 @@ function makeAttendees(count: number, gender?: "남" | "여"): Attendee[] {
     playCount: 0,
     waitCount: 0,
     playFrequencyPreference: "normal",
-    queueStatus: "normal",
   }));
 }
 

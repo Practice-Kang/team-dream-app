@@ -30,8 +30,8 @@ export function generateRound(options: GenerateRoundOptions): Round {
   const ordered = [...options.attendees]
     .map((attendee, index) => ({ attendee, index }))
     .sort((a, b) => {
-        const priorityDiff = playerPriority(b.attendee, options.stats) - playerPriority(a.attendee, options.stats);
-        if (priorityDiff !== 0) return priorityDiff;
+        const selectionScoreDiff = playerSelectionScore(b.attendee, options.stats) - playerSelectionScore(a.attendee, options.stats);
+        if (selectionScoreDiff !== 0) return selectionScoreDiff;
 
         if (options.preserveOrder) {
           return a.index - b.index;
@@ -184,15 +184,13 @@ function groupRank(group: RankedAttendee[]): number {
   return group.reduce((sum, player) => sum + player.rank, 0) / group.length;
 }
 
-function playerPriority(attendee: Attendee, stats: Record<string, PlayerRoundStats> | undefined): number {
+function playerSelectionScore(attendee: Attendee, stats: Record<string, PlayerRoundStats> | undefined): number {
   const playerStats = stats?.[attendee.id];
-  const queueStatusBonus = attendee.queueStatus === "priority" ? 100 : attendee.queueStatus === "hold" ? -1000 : 0;
   const frequencyAdjustedGamesPenalty = effectiveGamesPlayed(attendee) * 12;
 
-  if (!playerStats) return queueStatusBonus - frequencyAdjustedGamesPenalty;
+  if (!playerStats) return -frequencyAdjustedGamesPenalty;
 
   return (
-    queueStatusBonus +
     playerStats.waits * 10 -
     frequencyAdjustedGamesPenalty -
     (playerStats.playedPreviousRound ? 20 : 0)

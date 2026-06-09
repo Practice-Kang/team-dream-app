@@ -226,7 +226,6 @@ function makeAttendees(count: number): Attendee[] {
     playCount: 0,
     waitCount: 0,
     playFrequencyPreference: "normal",
-    queueStatus: "normal",
   }));
 }
 
@@ -249,7 +248,6 @@ function makeAttendee(no: number, gender: "남" | "여", skillScore: number): At
     playCount: 0,
     waitCount: 0,
     playFrequencyPreference: "normal",
-    queueStatus: "normal",
   };
 }
 

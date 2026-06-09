@@ -9,7 +9,6 @@ import type {
   Match,
   PlayFrequencyPreference,
   QueuedMatch,
-  QueueStatus,
   SessionState,
 } from "@/shared/domain";
 import { releaseForbiddenThreeToOnePendingMatches } from "@/shared/matchPolicy";
@@ -260,19 +259,6 @@ export const useSessionStore = defineStore("session", {
       this.updatedAt = new Date().toISOString();
       void this.persistRemoteSession();
     },
-    setQueueStatus(attendeeId: string, status: QueueStatus) {
-      const attendee = this.attendees.find((candidate) => candidate.id === attendeeId);
-      if (!attendee) return;
-
-      this.pushUndo("대기 상태 변경 전");
-      attendee.queueStatus = attendee.queueStatus === status ? "normal" : status;
-      this.updatedAt = new Date().toISOString();
-      this.rebuildUpcomingMatchesFromGroups([
-        ...this.upcomingMatches.map((match) => matchPlayers(match)),
-        this.waitingQueue,
-      ]);
-      void this.persistRemoteSession();
-    },
     generateNextRound() {
       this.assignInitialCourts();
     },
@@ -354,7 +340,6 @@ export const useSessionStore = defineStore("session", {
 
       finishedPlayers.forEach((player) => {
         player.playCount += 1;
-        player.queueStatus = "normal";
       });
 
       this.completedMatches.push({

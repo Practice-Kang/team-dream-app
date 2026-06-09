@@ -491,8 +491,7 @@ button {
   gap: 4px;
 }
 
-.frequency-control button,
-.queue-actions button {
+.frequency-control button {
   min-height: 36px;
   color: #4f5a54;
   background: #f5f7f2;
@@ -502,8 +501,7 @@ button {
   font-weight: 900;
 }
 
-.frequency-control button.active,
-.queue-actions button.active {
+.frequency-control button.active {
   color: #ffffff;
   background: #1d7a54;
   border-color: #1d7a54;
@@ -547,7 +545,7 @@ button {
 
 .queue-row {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
+  grid-template-columns: 34px minmax(0, 1fr);
   gap: 10px;
   min-height: 68px;
   padding: 10px;
@@ -570,12 +568,6 @@ button {
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
-}
-
-.queue-actions {
-  display: grid;
-  grid-template-columns: repeat(2, 48px);
-  gap: 5px;
 }
 
 .data-note {
@@ -771,12 +763,7 @@ button {
     grid-template-columns: 1fr;
   }
 
-  .attendee-count,
-  .queue-actions {
+  .attendee-count {
     justify-items: stretch;
-  }
-
-  .queue-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

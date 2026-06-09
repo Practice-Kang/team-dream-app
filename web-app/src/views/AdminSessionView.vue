@@ -169,24 +169,6 @@ function formatFetchedAt(value: string | null): string {
               {{ PLAY_FREQUENCY_LABELS[player.playFrequencyPreference] }}
             </span>
           </div>
-          <div class="queue-actions">
-            <button
-              :aria-pressed="player.queueStatus === 'priority'"
-              :class="{ active: player.queueStatus === 'priority' }"
-              type="button"
-              @click="session.setQueueStatus(player.id, 'priority')"
-            >
-              우선
-            </button>
-            <button
-              :aria-pressed="player.queueStatus === 'hold'"
-              :class="{ active: player.queueStatus === 'hold' }"
-              type="button"
-              @click="session.setQueueStatus(player.id, 'hold')"
-            >
-              보류
-            </button>
-          </div>
         </article>
       </div>
 
