@@ -8,14 +8,15 @@ import { useSessionStore } from "@/stores/session";
 const session = useSessionStore();
 const name = ref("");
 const gender = ref<Gender | null>(null);
-const scoreText = ref("");
+const scoreText = ref<string | number>("");
 
-const score = computed(() => Number(scoreText.value));
+const normalizedScoreText = computed(() => String(scoreText.value ?? ""));
+const score = computed(() => Number(normalizedScoreText.value));
 const canSubmit = computed(
   () =>
     name.value.trim().length > 0 &&
     gender.value !== null &&
-    scoreText.value.trim().length > 0 &&
+    normalizedScoreText.value.trim().length > 0 &&
     Number.isFinite(score.value) &&
     score.value >= 0 &&
     score.value <= 100,
@@ -48,7 +49,7 @@ function submitGuest() {
       <strong>{{ session.guestCount }}명</strong>
     </div>
 
-    <form class="guest-form" @submit.prevent="submitGuest">
+    <div class="guest-form">
       <label class="guest-field guest-name-field">
         <span>이름</span>
         <input v-model="name" autocomplete="off" type="text" />
@@ -71,11 +72,12 @@ function submitGuest() {
       <button
         class="command guest-add-command"
         :disabled="!canSubmit || session.syncStatus === 'saving'"
-        type="submit"
+        type="button"
+        @click="submitGuest"
       >
         <UserPlus :size="18" />
         <span>추가</span>
       </button>
-    </form>
+    </div>
   </section>
 </template>
