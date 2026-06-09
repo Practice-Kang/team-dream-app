@@ -13,7 +13,7 @@ import type {
   SessionState,
 } from "@/shared/domain";
 import { CURRENT_SESSION_ID, MATCHING_POLICY_VERSION, type RemoteSessionSnapshot } from "@/shared/sessionSource";
-import { loadSessionStateFromStorage, sanitizeSessionState } from "@/stores/sessionPersistence";
+import { sanitizeSessionState } from "@/stores/sessionPersistence";
 
 type SyncStatus = "idle" | "loading" | "saving" | "error";
 
@@ -81,7 +81,7 @@ function defaultSessionState(): SessionState {
 
 function defaultStoreState(): SessionStoreState {
   return {
-    ...loadSessionStateFromStorage(defaultSessionState()),
+    ...defaultSessionState(),
     remoteVersion: null,
     syncStatus: "idle",
     syncError: null,
