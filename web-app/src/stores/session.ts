@@ -6,12 +6,13 @@ import { fetchCurrentSession, saveCurrentSession, SessionConflictError } from "@
 import type {
   Attendee,
   CourtState,
+  EditableMatchTarget,
   Match,
+  MatchSlot,
   PlayFrequencyPreference,
   QueuedMatch,
   SessionState,
 } from "@/shared/domain";
-import { releaseForbiddenThreeToOnePendingMatches } from "@/shared/matchPolicy";
 import { CURRENT_SESSION_ID, MATCHING_POLICY_VERSION, type RemoteSessionSnapshot } from "@/shared/sessionSource";
 import { createSessionSnapshot, sanitizeSessionState } from "@/stores/sessionPersistence";
 
@@ -154,7 +155,6 @@ export const useSessionStore = defineStore("session", {
     applyRemoteSession(snapshot: RemoteSessionSnapshot) {
       const state = sanitizeSessionState(snapshot.state);
       state.matchingPolicyVersion = MATCHING_POLICY_VERSION;
-      releaseForbiddenThreeToOnePendingMatches(state);
 
       Object.assign(this, state, {
         remoteVersion: snapshot.version,
@@ -173,7 +173,6 @@ export const useSessionStore = defineStore("session", {
           ...sanitizeSessionState(this),
           matchingPolicyVersion: MATCHING_POLICY_VERSION,
         };
-        releaseForbiddenThreeToOnePendingMatches(state);
         const snapshot = await saveCurrentSession(state, this.remoteVersion);
         this.applyRemoteSession(snapshot);
       } catch (error) {
@@ -381,9 +380,31 @@ export const useSessionStore = defineStore("session", {
         undoStack: this.undoStack.slice(0, -1),
         updatedAt: new Date().toISOString(),
       });
-      releaseForbiddenThreeToOnePendingMatches(restored);
       Object.assign(this, restored);
       void this.persistRemoteSession();
+    },
+    replaceEditableMatchPlayer(target: EditableMatchTarget, slot: MatchSlot, replacementId: string) {
+      const targetMatch = editableMatchForTarget(this, target);
+      const currentPlayer = targetMatch?.[slot.team]?.players[slot.playerIndex];
+      if (!targetMatch || !currentPlayer) return false;
+      if (currentPlayer.id === replacementId) return true;
+
+      const replacementLocation = findEditablePlayerLocation(this, replacementId);
+      if (!replacementLocation || replacementLocation.kind === "locked") return false;
+
+      this.pushUndo("경기 수정 전");
+      targetMatch[slot.team].players[slot.playerIndex] = replacementLocation.player;
+
+      if (replacementLocation.kind === "match") {
+        replacementLocation.match[replacementLocation.slot.team].players[replacementLocation.slot.playerIndex] =
+          currentPlayer;
+      } else {
+        this.waitingQueue.splice(replacementLocation.index, 1, currentPlayer);
+      }
+
+      this.updatedAt = new Date().toISOString();
+      void this.persistRemoteSession();
+      return true;
     },
     pushUndo(label: string) {
       this.undoStack = appendUndoEntry(this.undoStack, createUndoEntry(this, label));
@@ -451,4 +472,83 @@ function hasMeaningfulSession(state: SessionState): boolean {
     state.waitingQueue.length > 0 ||
     state.completedMatches.length > 0
   );
+}
+
+function editableMatchForTarget(state: SessionState, target: EditableMatchTarget): Match | QueuedMatch | null {
+  if (target.type === "upcoming") {
+    return state.upcomingMatches[target.index] ?? null;
+  }
+
+  const court = state.courts.find((candidate) => candidate.courtNumber === target.courtNumber);
+  if (!court || court.status !== "assigned") return null;
+
+  return court.match;
+}
+
+type EditablePlayerLocation =
+  | {
+      kind: "match";
+      match: Match | QueuedMatch;
+      slot: MatchSlot;
+      player: Attendee;
+    }
+  | {
+      kind: "waiting";
+      index: number;
+      player: Attendee;
+    }
+  | {
+      kind: "locked";
+      player: Attendee;
+    };
+
+function findEditablePlayerLocation(state: SessionState, playerId: string): EditablePlayerLocation | null {
+  for (const court of state.courts) {
+    if (!court.match) continue;
+
+    const location = findPlayerInMatch(court.match, playerId);
+    if (!location) continue;
+
+    return court.status === "inProgress"
+      ? {
+          kind: "locked",
+          player: location.player,
+        }
+      : location;
+  }
+
+  for (const match of state.upcomingMatches) {
+    const location = findPlayerInMatch(match, playerId);
+    if (location) return location;
+  }
+
+  const waitingIndex = state.waitingQueue.findIndex((player) => player.id === playerId);
+  if (waitingIndex >= 0) {
+    return {
+      kind: "waiting",
+      index: waitingIndex,
+      player: state.waitingQueue[waitingIndex],
+    };
+  }
+
+  return null;
+}
+
+function findPlayerInMatch(match: Match | QueuedMatch, playerId: string): Extract<EditablePlayerLocation, { kind: "match" }> | null {
+  for (const team of ["teamA", "teamB"] as const) {
+    const playerIndex = match[team].players.findIndex((player) => player.id === playerId);
+    if (playerIndex >= 0) {
+      return {
+        kind: "match",
+        match,
+        slot: {
+          team,
+          playerIndex,
+        },
+        player: match[team].players[playerIndex],
+      };
+    }
+  }
+
+  return null;
 }

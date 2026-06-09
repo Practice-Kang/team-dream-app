@@ -50,6 +50,23 @@ export interface QueuedMatch {
   teamB: Team;
 }
 
+export type MatchTeamKey = "teamA" | "teamB";
+
+export interface MatchSlot {
+  team: MatchTeamKey;
+  playerIndex: number;
+}
+
+export type EditableMatchTarget =
+  | {
+      type: "court";
+      courtNumber: number;
+    }
+  | {
+      type: "upcoming";
+      index: number;
+    };
+
 export interface CourtState {
   courtNumber: number;
   status: CourtStatus;

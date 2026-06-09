@@ -1,19 +1,21 @@
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
-import { Copy, Database, LogOut, Play, RefreshCw, Undo2 } from "@lucide/vue";
+import { computed, onMounted, ref } from "vue";
+import { Copy, Database, LogOut, Pencil, Play, RefreshCw, Undo2 } from "@lucide/vue";
 import { useRouter } from "vue-router";
 
 import AppHeader from "@/components/AppHeader.vue";
 import CourtBoard from "@/components/CourtBoard.vue";
 import FrequencyPreferenceControl from "@/components/FrequencyPreferenceControl.vue";
+import MatchEditorSheet from "@/components/MatchEditorSheet.vue";
 import PlayCountBadge from "@/components/PlayCountBadge.vue";
-import { PLAY_FREQUENCY_LABELS, effectiveGamesPlayed } from "@/shared/domain";
+import { PLAY_FREQUENCY_LABELS, effectiveGamesPlayed, type EditableMatchTarget } from "@/shared/domain";
 import { useAuthStore } from "@/stores/auth";
 import { useSessionStore } from "@/stores/session";
 
 const session = useSessionStore();
 const auth = useAuthStore();
 const router = useRouter();
+const editTarget = ref<EditableMatchTarget | null>(null);
 
 const canReloadAttendees = computed(() => !session.attendeesLoading);
 const hasSessionStateToReset = computed(
@@ -41,6 +43,20 @@ function reloadTodayAttendees() {
   }
 
   void session.loadTodayAttendees({ resetSession: true });
+}
+
+function openCourtEditor(courtNumber: number) {
+  editTarget.value = {
+    type: "court",
+    courtNumber,
+  };
+}
+
+function openUpcomingEditor(index: number) {
+  editTarget.value = {
+    type: "upcoming",
+    index,
+  };
 }
 
 async function logout() {
@@ -131,7 +147,7 @@ function formatFetchedAt(value: string | null): string {
       </button>
     </div>
 
-    <CourtBoard />
+    <CourtBoard @edit-court="openCourtEditor" />
 
     <section class="waiting-panel" aria-label="다음 경기">
       <div class="section-title">
@@ -140,13 +156,21 @@ function formatFetchedAt(value: string | null): string {
       </div>
 
       <div v-if="session.upcomingMatches.length" class="match-list">
-        <article v-for="match in session.upcomingMatches" :key="match.id" class="match-row">
+        <article v-for="(match, index) in session.upcomingMatches" :key="match.id" class="match-row editable">
           <div class="court-badge">다음 1</div>
           <div class="teams">
             <p>{{ playerNames(match.teamA.players) }}</p>
             <span>vs</span>
             <p>{{ playerNames(match.teamB.players) }}</p>
           </div>
+          <button
+            class="icon-command match-edit-command"
+            title="다음 경기 수정"
+            type="button"
+            @click="openUpcomingEditor(index)"
+          >
+            <Pencil :size="18" />
+          </button>
         </article>
       </div>
 
@@ -216,7 +240,11 @@ function formatFetchedAt(value: string | null): string {
           출석기록 {{ session.attendanceDate }} · 참석 {{ session.selectedCount }}명 · 회원 {{ session.sourceMembersCount }}명 ·
           {{ formatFetchedAt(session.attendeesFetchedAt) }}
         </span>
-        <button v-if="(session.attendeesError || session.unmatchedAttendanceNames.length) && canReloadAttendees" type="button" @click="reloadTodayAttendees">
+        <button
+          v-if="(session.attendeesError || session.unmatchedAttendanceNames.length) && canReloadAttendees"
+          type="button"
+          @click="reloadTodayAttendees"
+        >
           다시 시도
         </button>
       </div>
@@ -229,5 +257,7 @@ function formatFetchedAt(value: string | null): string {
         <span>경기판을 다시 맞추고 있습니다.</span>
       </div>
     </div>
+
+    <MatchEditorSheet :target="editTarget" @close="editTarget = null" />
   </main>
 </template>

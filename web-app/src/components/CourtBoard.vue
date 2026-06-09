@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { Play, Plus, Square } from "@lucide/vue";
+import { Pencil, Play, Plus, Square } from "@lucide/vue";
 
 import PlayCountBadge from "@/components/PlayCountBadge.vue";
 import type { CourtState } from "@/shared/domain";
 import { useSessionStore } from "@/stores/session";
 
 const session = useSessionStore();
+const emit = defineEmits<{
+  editCourt: [courtNumber: number];
+}>();
 
 function statusLabel(status: CourtState["status"]): string {
   if (status === "assigned") return "배정됨";
@@ -63,6 +66,15 @@ function statusLabel(status: CourtState["status"]): string {
           >
             <Play :size="18" />
             <span>시작</span>
+          </button>
+          <button
+            v-if="court.status === 'assigned'"
+            class="command"
+            type="button"
+            @click="emit('editCourt', court.courtNumber)"
+          >
+            <Pencil :size="17" />
+            <span>수정</span>
           </button>
           <button
             v-if="court.status === 'inProgress'"

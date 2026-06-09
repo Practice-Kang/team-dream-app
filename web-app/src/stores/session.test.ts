@@ -95,6 +95,108 @@ describe("session store upcoming matches", () => {
     expect(session.courts[0].match?.teamB.players.every((player) => player.playCount === 0)).toBe(true);
   });
 
+  it("can manually replace an assigned court player with a waiting player and undo it", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+
+    session.setCourtCount(2);
+    session.setAttendees(makeAttendees(16, "남"));
+    session.assignInitialCourts();
+
+    const originalPlayerId = session.courts[0].match?.teamA.players[0].id;
+    const replacementPlayer = session.waitingQueue[0];
+    const waitingBefore = session.waitingQueue.map((player) => player.id);
+
+    const replaced = session.replaceEditableMatchPlayer(
+      { type: "court", courtNumber: 1 },
+      { team: "teamA", playerIndex: 0 },
+      replacementPlayer.id,
+    );
+
+    expect(replaced).toBe(true);
+    expect(session.courts[0].match?.teamA.players[0].id).toBe(replacementPlayer.id);
+    expect(session.waitingQueue[0].id).toBe(originalPlayerId);
+    expect(playersOf(session.courts[0].match)).toHaveLength(4);
+
+    session.undoLastChange();
+
+    expect(session.courts[0].match?.teamA.players[0].id).toBe(originalPlayerId);
+    expect(session.waitingQueue.map((player) => player.id)).toEqual(waitingBefore);
+  });
+
+  it("can manually replace a next match player with a waiting player", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+
+    session.setCourtCount(2);
+    session.setAttendees(makeAttendees(16, "남"));
+    session.assignInitialCourts();
+
+    const originalPlayerId = session.upcomingMatches[0].teamB.players[1].id;
+    const replacementPlayer = session.waitingQueue[0];
+
+    const replaced = session.replaceEditableMatchPlayer(
+      { type: "upcoming", index: 0 },
+      { team: "teamB", playerIndex: 1 },
+      replacementPlayer.id,
+    );
+
+    expect(replaced).toBe(true);
+    expect(session.upcomingMatches[0].teamB.players[1].id).toBe(replacementPlayer.id);
+    expect(session.waitingQueue[0].id).toBe(originalPlayerId);
+    expect(playersOf(session.upcomingMatches[0])).toHaveLength(4);
+  });
+
+  it("does not allow a player from an in-progress court to be used as a manual replacement", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+
+    session.setCourtCount(2);
+    session.setAttendees(makeAttendees(8, "남"));
+    session.assignInitialCourts();
+    session.startCourt(2);
+
+    const originalPlayerId = session.courts[0].match?.teamA.players[0].id;
+    const lockedPlayerId = session.courts[1].match?.teamA.players[0].id;
+    const undoCount = session.undoStack.length;
+
+    const replaced = session.replaceEditableMatchPlayer(
+      { type: "court", courtNumber: 1 },
+      { team: "teamA", playerIndex: 0 },
+      lockedPlayerId ?? "",
+    );
+
+    expect(replaced).toBe(false);
+    expect(session.courts[0].match?.teamA.players[0].id).toBe(originalPlayerId);
+    expect(session.undoStack).toHaveLength(undoCount);
+  });
+
+  it("allows manual edits to create a 3-to-1 gender match while keeping four players", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+
+    session.setCourtCount(2);
+    session.setAttendees([...makeGenderedAttendees(4, "남", 1), ...makeGenderedAttendees(4, "여", 5)]);
+    session.assignInitialCourts();
+
+    const maleCourt = session.courts.find((court) => hasOnlyGender(court.match, "남"));
+    const femaleCourt = session.courts.find((court) => hasOnlyGender(court.match, "여"));
+    const replacementPlayer = femaleCourt?.match?.teamA.players[0];
+
+    expect(maleCourt?.match).toBeTruthy();
+    expect(replacementPlayer).toBeTruthy();
+
+    const replaced = session.replaceEditableMatchPlayer(
+      { type: "court", courtNumber: maleCourt?.courtNumber ?? 1 },
+      { team: "teamA", playerIndex: 0 },
+      replacementPlayer?.id ?? "",
+    );
+
+    expect(replaced).toBe(true);
+    expect(playersOf(maleCourt?.match ?? null)).toHaveLength(4);
+    expect(isThreeToOneMatch(maleCourt?.match as MatchLike)).toBe(true);
+  });
+
   it("rebuilds one upcoming match from waiting and finished players in the common 16-player 2-court case", () => {
     const session = useSessionStore();
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
@@ -232,6 +334,12 @@ function isThreeToOneMatch(match: MatchLike): boolean {
   const femaleCount = players.filter((player) => player.gender === "여").length;
 
   return (maleCount === 3 && femaleCount === 1) || (maleCount === 1 && femaleCount === 3);
+}
+
+function hasOnlyGender(match: MatchLike | null, gender: "남" | "여"): boolean {
+  if (!match) return false;
+
+  return [...match.teamA.players, ...match.teamB.players].every((player) => player.gender === gender);
 }
 
 function makeAttendees(count: number, gender?: "남" | "여"): Attendee[] {

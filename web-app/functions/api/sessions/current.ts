@@ -1,7 +1,6 @@
 import { verifyAdminRequest, type AuthEnv } from "../auth/_shared";
 import { todayDateKey } from "../../../src/shared/dateKey";
 import type { SessionState } from "../../../src/shared/domain";
-import { hasForbiddenThreeToOnePendingMatch, releaseForbiddenThreeToOnePendingMatches } from "../../../src/shared/matchPolicy";
 import { CURRENT_SESSION_ID, MATCHING_POLICY_VERSION } from "../../../src/shared/sessionSource";
 
 const SESSION_TTL_SECONDS = 6 * 60 * 60;
@@ -63,13 +62,8 @@ export const onRequestPut: PagesFunction<SessionEnv> = async ({ env, request }) 
     );
   }
 
-  if (hasForbiddenThreeToOnePendingMatch(body.state)) {
-    return Response.json(
-      {
-        message: "남3여1 또는 여3남1 조합은 허용하지 않습니다. 최신 상태를 불러온 뒤 다시 배정해주세요.",
-      },
-      { status: 422 },
-    );
+  if (hasInvalidActiveMatchSize(body.state)) {
+    return Response.json({ message: "시작 전 경기와 다음 경기는 반드시 4명이어야 합니다." }, { status: 422 });
   }
 
   const existing = await readCurrentSessionRow(env.DB);
@@ -146,7 +140,6 @@ function toResponseBody(row: SessionRow) {
     ...(JSON.parse(row.payload) as SessionState),
     id: row.id,
   };
-  releaseForbiddenThreeToOnePendingMatches(session);
 
   return {
     session,
@@ -186,7 +179,33 @@ function isSessionState(value: unknown): value is SessionState {
     typeof state.courtCount === "number" &&
     Array.isArray(state.attendees) &&
     Array.isArray(state.courts) &&
+    Array.isArray(state.upcomingMatches) &&
     Array.isArray(state.waitingQueue) &&
     Array.isArray(state.completedMatches)
   );
+}
+
+interface MatchShape {
+  teamA?: {
+    players?: unknown[];
+  };
+  teamB?: {
+    players?: unknown[];
+  };
+}
+
+function hasInvalidActiveMatchSize(state: SessionState): boolean {
+  return (
+    state.courts.some((court) => Boolean(court.match) && countMatchPlayers(court.match) !== 4) ||
+    state.upcomingMatches.some((match) => countMatchPlayers(match) !== 4)
+  );
+}
+
+function countMatchPlayers(match: MatchShape | null): number {
+  if (!match) return 0;
+
+  const teamAPlayers = Array.isArray(match.teamA?.players) ? match.teamA.players : [];
+  const teamBPlayers = Array.isArray(match.teamB?.players) ? match.teamB.players : [];
+
+  return teamAPlayers.length + teamBPlayers.length;
 }
