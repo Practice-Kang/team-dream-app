@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Play, Plus, RefreshCw, Square } from "@lucide/vue";
+import { Play, Plus, Square } from "@lucide/vue";
 
 import PlayCountBadge from "@/components/PlayCountBadge.vue";
 import type { CourtState } from "@/shared/domain";
@@ -63,15 +63,6 @@ function statusLabel(status: CourtState["status"]): string {
           >
             <Play :size="18" />
             <span>시작</span>
-          </button>
-          <button
-            v-if="court.status === 'assigned'"
-            class="command"
-            type="button"
-            @click="session.assignSingleCourt(court.courtNumber)"
-          >
-            <RefreshCw :size="18" />
-            <span>재배정</span>
           </button>
           <button
             v-if="court.status === 'inProgress'"

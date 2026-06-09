@@ -110,6 +110,23 @@ describe("session store upcoming matches", () => {
     expect(groupKey(session.upcomingMatches[0])).not.toBe(finishedGroupKey);
   });
 
+  it("does not replace an assigned court with the upcoming match before play starts", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+
+    session.setCourtCount(3);
+    session.setAttendees([...makeGenderedAttendees(13, "남", 1), ...makeGenderedAttendees(11, "여", 14)]);
+    session.assignInitialCourts();
+
+    const courtGroups = session.courts.map((court) => groupKey(court.match));
+    const sequence = session.matchSequence;
+
+    session.assignSingleCourt(1);
+
+    expect(session.courts.map((court) => groupKey(court.match))).toEqual(courtGroups);
+    expect(session.matchSequence).toBe(sequence);
+  });
+
   it("can reset an active session by reloading today's attendance records", async () => {
     const session = useSessionStore();
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
@@ -168,5 +185,15 @@ function makeAttendees(count: number, gender?: "남" | "여"): Attendee[] {
     waitCount: 0,
     playFrequencyPreference: "normal",
     queueStatus: "normal",
+  }));
+}
+
+function makeGenderedAttendees(count: number, gender: "남" | "여", startNo: number): Attendee[] {
+  return Array.from({ length: count }, (_, index) => ({
+    ...makeAttendees(1, gender)[0],
+    id: `member-${startNo + index}`,
+    no: startNo + index,
+    name: `회원${startNo + index}`,
+    skillScore: 50 + (index % 5),
   }));
 }

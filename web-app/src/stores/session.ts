@@ -149,6 +149,7 @@ export const useSessionStore = defineStore("session", {
     },
     applyRemoteSession(snapshot: RemoteSessionSnapshot) {
       const state = sanitizeSessionState(snapshot.state);
+      state.matchingPolicyVersion = MATCHING_POLICY_VERSION;
 
       Object.assign(this, state, {
         remoteVersion: snapshot.version,
@@ -163,7 +164,11 @@ export const useSessionStore = defineStore("session", {
       this.syncError = null;
 
       try {
-        const snapshot = await saveCurrentSession(sanitizeSessionState(this), this.remoteVersion);
+        const state = {
+          ...sanitizeSessionState(this),
+          matchingPolicyVersion: MATCHING_POLICY_VERSION,
+        };
+        const snapshot = await saveCurrentSession(state, this.remoteVersion);
         this.applyRemoteSession(snapshot);
       } catch (error) {
         if (error instanceof SessionConflictError) {
@@ -289,16 +294,10 @@ export const useSessionStore = defineStore("session", {
     },
     assignSingleCourt(courtNumber: number) {
       const court = this.courts.find((candidate) => candidate.courtNumber === courtNumber);
-      if (!court || court.status === "inProgress") return;
-
-      const releasedGroups: Attendee[][] = [];
-      if (court.match && court.status === "assigned") {
-        releasedGroups.push(matchPlayers(court.match));
-      }
+      if (!court || court.status !== "empty") return;
 
       if (this.upcomingMatches.length === 0) {
-        this.rebuildUpcomingMatchesFromGroups([this.waitingQueue, ...releasedGroups]);
-        releasedGroups.length = 0;
+        this.rebuildUpcomingMatchesFromGroups([this.waitingQueue]);
       }
 
       const assignedAt = new Date().toISOString();
@@ -313,7 +312,6 @@ export const useSessionStore = defineStore("session", {
       this.rebuildUpcomingMatchesFromGroups([
         ...this.upcomingMatches.map((match) => matchPlayers(match)),
         this.waitingQueue,
-        ...releasedGroups,
       ]);
       this.updatedAt = assignedAt;
       void this.persistRemoteSession();

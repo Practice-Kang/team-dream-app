@@ -89,6 +89,21 @@ describe("generateRound", () => {
     );
   });
 
+  it("does not create mixed games for the common 13 men and 11 women, 3 court case", () => {
+    const attendees = [...makeGenderedAttendees(13, "남", 1), ...makeGenderedAttendees(11, "여", 14)];
+
+    const round = generateRound({
+      attendees,
+      courtCount: 3,
+      seed: "common-13-11",
+    });
+
+    expect(round.matches).toHaveLength(3);
+    expect(round.matches.every((match) => new Set(playersOf(match).map((player) => player.gender)).size === 1)).toBe(
+      true,
+    );
+  });
+
   it("uses a mixed match only for a stranded gender group", () => {
     const attendees = [...makeGenderedAttendees(12, "남", 1), ...makeGenderedAttendees(1, "여", 13)];
 
