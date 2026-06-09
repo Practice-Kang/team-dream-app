@@ -69,6 +69,10 @@ function playerNames(players: { name: string }[]): string {
   return players.map((player) => player.name).join(" / ");
 }
 
+function updateGuestSkillScore(attendeeId: string, rawValue: string) {
+  session.setGuestSkillScore(attendeeId, Number(rawValue));
+}
+
 function formatFetchedAt(value: string | null): string {
   if (!value) return "";
 
@@ -225,7 +229,21 @@ function formatFetchedAt(value: string | null): string {
               {{ attendee.name }}
               <small v-if="attendee.isGuest" class="inline-chip">게스트</small>
             </strong>
-            <span>{{ attendee.gender }} · {{ attendee.level || "급수 없음" }} · {{ attendee.skillScore ?? "-" }}점</span>
+            <template v-if="attendee.isGuest">
+              <span>{{ attendee.gender }} · 게스트</span>
+              <label class="guest-score-field">
+                <span>점수</span>
+                <input
+                  :value="attendee.skillScore ?? ''"
+                  inputmode="numeric"
+                  max="100"
+                  min="0"
+                  type="number"
+                  @change="updateGuestSkillScore(attendee.id, ($event.target as HTMLInputElement).value)"
+                />
+              </label>
+            </template>
+            <span v-else>{{ attendee.gender }} · {{ attendee.level || "급수 없음" }} · {{ attendee.skillScore ?? "-" }}점</span>
           </div>
           <div class="attendee-count">
             <PlayCountBadge :count="attendee.playCount" />

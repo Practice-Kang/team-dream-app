@@ -257,6 +257,38 @@ button {
   min-height: 48px;
 }
 
+.guest-score-field {
+  display: inline-grid;
+  grid-template-columns: auto 84px;
+  gap: 8px;
+  align-items: center;
+  justify-content: start;
+  margin-top: 3px;
+}
+
+.guest-score-field span {
+  color: #4f5a54;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.guest-score-field input {
+  width: 84px;
+  min-height: 38px;
+  padding: 0 9px;
+  color: #182026;
+  background: #ffffff;
+  border: 1px solid #d7ddd4;
+  border-radius: 8px;
+  font-weight: 900;
+  outline: none;
+}
+
+.guest-score-field input:focus {
+  border-color: #1d7a54;
+  box-shadow: 0 0 0 3px #ddefe3;
+}
+
 .command,
 .icon-command {
   display: inline-flex;
@@ -794,6 +826,12 @@ button {
   color: #68746e;
   font-size: 13px;
   font-weight: 800;
+}
+
+.attendee-main .guest-score-field span {
+  color: #4f5a54;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .attendee-count {

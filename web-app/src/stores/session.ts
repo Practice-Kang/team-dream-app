@@ -271,6 +271,20 @@ export const useSessionStore = defineStore("session", {
       void this.persistRemoteSession();
       return guest;
     },
+    setGuestSkillScore(attendeeId: string, skillScore: number) {
+      const attendee = this.attendees.find((candidate) => candidate.id === attendeeId);
+      if (!attendee?.isGuest || !Number.isFinite(skillScore)) return false;
+
+      const nextSkillScore = normalizeSkillScore(skillScore);
+      if (attendee.skillScore === nextSkillScore) return true;
+
+      this.pushUndo("게스트 점수 변경 전");
+      updateGuestSkillScoreEverywhere(this, attendeeId, nextSkillScore);
+      rebalanceEditableMatchesContainingPlayer(this, attendeeId);
+      this.updatedAt = new Date().toISOString();
+      void this.persistRemoteSession();
+      return true;
+    },
     setFrequencyPreference(attendeeId: string, preference: PlayFrequencyPreference) {
       const attendee = this.attendees.find((candidate) => candidate.id === attendeeId);
       if (!attendee || attendee.playFrequencyPreference === preference) return;
@@ -512,7 +526,7 @@ function createGuestAttendee(input: GuestAttendeeInput): Attendee | null {
   if (!name || !Number.isFinite(input.skillScore)) return null;
 
   const selectedAt = new Date().toISOString();
-  const skillScore = Math.max(0, Math.min(100, Math.round(input.skillScore)));
+  const skillScore = normalizeSkillScore(input.skillScore);
 
   return {
     id: `guest-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -530,6 +544,48 @@ function createGuestAttendee(input: GuestAttendeeInput): Attendee | null {
     waitCount: 0,
     playFrequencyPreference: "normal",
   };
+}
+
+function normalizeSkillScore(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function updateGuestSkillScoreEverywhere(state: SessionState, attendeeId: string, skillScore: number): void {
+  const updatePlayers = (players: Attendee[]) => {
+    players.forEach((player) => {
+      if (player.id === attendeeId && player.isGuest) {
+        player.skillScore = skillScore;
+      }
+    });
+  };
+
+  updatePlayers(state.attendees);
+  updatePlayers(state.waitingQueue);
+
+  state.courts.forEach((court) => {
+    if (court.match) updatePlayers(matchPlayers(court.match));
+  });
+
+  state.upcomingMatches.forEach((match) => updatePlayers(matchPlayers(match)));
+  state.completedMatches.forEach((completedMatch) => updatePlayers(matchPlayers(completedMatch.match)));
+  state.rounds.forEach((round) => {
+    round.matches.forEach((match) => updatePlayers(matchPlayers(match)));
+    updatePlayers(round.waiting);
+  });
+}
+
+function rebalanceEditableMatchesContainingPlayer(state: SessionState, attendeeId: string): void {
+  state.courts.forEach((court) => {
+    if (court.status === "assigned" && court.match && matchPlayers(court.match).some((player) => player.id === attendeeId)) {
+      rebalanceMatchTeams(court.match);
+    }
+  });
+
+  state.upcomingMatches.forEach((match) => {
+    if (matchPlayers(match).some((player) => player.id === attendeeId)) {
+      rebalanceMatchTeams(match);
+    }
+  });
 }
 
 function editableMatchForTarget(state: SessionState, target: EditableMatchTarget): Match | QueuedMatch | null {

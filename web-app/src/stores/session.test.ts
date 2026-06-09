@@ -80,6 +80,51 @@ describe("session store upcoming matches", () => {
     expect(playersOf(session.upcomingMatches[0])).toContain(guest?.id);
   });
 
+  it("updates only guest skill scores across current session copies", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+    const guest = makeGuestAttendee("guest-1", 60);
+    const players = makeAttendees(7, "여");
+
+    session.setCourtCount(1);
+    session.attendees = [guest, ...players];
+    session.courts = [
+      {
+        courtNumber: 1,
+        status: "assigned",
+        match: {
+          id: "court-1",
+          courtNumber: 1,
+          teamA: { players: [{ ...guest }, players[0]] },
+          teamB: { players: [players[1], players[2]] },
+        },
+        assignedAt: "2026-06-09T00:00:00.000Z",
+        startedAt: null,
+      },
+    ];
+    session.upcomingMatches = [
+      {
+        id: "next-1",
+        teamA: { players: [players[3], { ...guest }] },
+        teamB: { players: [players[4], players[5]] },
+      },
+    ];
+    session.waitingQueue = [{ ...guest }, players[6]];
+
+    expect(session.setGuestSkillScore(players[0].id, 10)).toBe(false);
+    expect(session.setGuestSkillScore(guest.id, 92.2)).toBe(true);
+
+    expect(session.attendees.find((attendee) => attendee.id === guest.id)?.skillScore).toBe(92);
+    expect(matchPlayersById(session.courts[0].match, guest.id).every((player) => player.skillScore === 92)).toBe(true);
+    expect(matchPlayersById(session.upcomingMatches[0], guest.id).every((player) => player.skillScore === 92)).toBe(true);
+    expect(session.waitingQueue.find((player) => player.id === guest.id)?.skillScore).toBe(92);
+
+    session.undoLastChange();
+
+    expect(session.attendees.find((attendee) => attendee.id === guest.id)?.skillScore).toBe(60);
+    expect(matchPlayersById(session.courts[0].match, guest.id).every((player) => player.skillScore === 60)).toBe(true);
+  });
+
   it("assigns the first upcoming match to the court that finishes first", () => {
     const session = useSessionStore();
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
@@ -446,6 +491,11 @@ function playersOf(match: MatchLike | null): string[] {
   return [...match.teamA.players, ...match.teamB.players].map((player) => player.id);
 }
 
+function matchPlayersById(match: MatchLike | null, playerId: string): Attendee[] {
+  if (!match) return [];
+  return [...match.teamA.players, ...match.teamB.players].filter((player) => player.id === playerId);
+}
+
 function groupKey(match: MatchLike | null): string {
   return playersOf(match).sort().join("|");
 }
@@ -508,4 +558,16 @@ function makeNamedAttendees(players: Array<[string, number]>): Attendee[] {
     name,
     skillScore,
   }));
+}
+
+function makeGuestAttendee(id: string, skillScore: number): Attendee {
+  return {
+    ...makeAttendees(1, "여")[0],
+    id,
+    no: null,
+    name: "게스트",
+    level: "게스트",
+    skillScore,
+    isGuest: true,
+  };
 }
