@@ -114,7 +114,8 @@ describe("session store upcoming matches", () => {
     );
 
     expect(replaced).toBe(true);
-    expect(session.courts[0].match?.teamA.players[0].id).toBe(replacementPlayer.id);
+    expect(playersOf(session.courts[0].match)).toContain(replacementPlayer.id);
+    expect(playersOf(session.courts[0].match)).not.toContain(originalPlayerId);
     expect(session.waitingQueue[0].id).toBe(originalPlayerId);
     expect(playersOf(session.courts[0].match)).toHaveLength(4);
 
@@ -142,9 +143,75 @@ describe("session store upcoming matches", () => {
     );
 
     expect(replaced).toBe(true);
-    expect(session.upcomingMatches[0].teamB.players[1].id).toBe(replacementPlayer.id);
+    expect(playersOf(session.upcomingMatches[0])).toContain(replacementPlayer.id);
+    expect(playersOf(session.upcomingMatches[0])).not.toContain(originalPlayerId);
     expect(session.waitingQueue[0].id).toBe(originalPlayerId);
     expect(playersOf(session.upcomingMatches[0])).toHaveLength(4);
+  });
+
+  it("rebalances only affected match teams after a manual replacement", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+    const [courtLowA, courtHigh, courtLowB, courtLowC, upcomingLow, upcomingHigh, upcomingMidA, upcomingMidB] =
+      makeNamedAttendees([
+        ["김지혜", 70],
+        ["정승희", 100],
+        ["김세화", 70],
+        ["김주희", 70],
+        ["차희윤", 75],
+        ["천원희", 100],
+        ["강민지", 80],
+        ["박송이", 90],
+      ]);
+
+    session.setCourtCount(1);
+    session.setAttendees([
+      courtLowA,
+      courtHigh,
+      courtLowB,
+      courtLowC,
+      upcomingLow,
+      upcomingHigh,
+      upcomingMidA,
+      upcomingMidB,
+    ]);
+    session.courts = [
+      {
+        courtNumber: 1,
+        status: "assigned",
+        match: {
+          id: "court-1",
+          courtNumber: 1,
+          teamA: { players: [courtLowA, courtHigh] },
+          teamB: { players: [courtLowB, courtLowC] },
+        },
+        assignedAt: "2026-06-09T00:00:00.000Z",
+        startedAt: null,
+      },
+    ];
+    session.upcomingMatches = [
+      {
+        id: "next-1",
+        teamA: { players: [upcomingLow, upcomingHigh] },
+        teamB: { players: [upcomingMidA, upcomingMidB] },
+      },
+    ];
+    session.waitingQueue = [];
+
+    const replaced = session.replaceEditableMatchPlayer(
+      { type: "court", courtNumber: 1 },
+      { team: "teamA", playerIndex: 1 },
+      upcomingLow.id,
+    );
+
+    expect(replaced).toBe(true);
+    expect(groupKey(session.courts[0].match)).toBe(
+      [courtLowA, upcomingLow, courtLowB, courtLowC].map((player) => player.id).sort().join("|"),
+    );
+    expect(groupKey(session.upcomingMatches[0])).toBe(
+      [courtHigh, upcomingHigh, upcomingMidA, upcomingMidB].map((player) => player.id).sort().join("|"),
+    );
+    expect(teamScoreDiff(session.upcomingMatches[0])).toBe(10);
   });
 
   it("does not allow a player from an in-progress court to be used as a manual replacement", () => {
@@ -328,6 +395,14 @@ function groupKey(match: MatchLike | null): string {
   return playersOf(match).sort().join("|");
 }
 
+function teamScoreDiff(match: MatchLike): number {
+  return Math.abs(teamScore(match.teamA.players) - teamScore(match.teamB.players));
+}
+
+function teamScore(players: Attendee[]): number {
+  return players.reduce((sum, player) => sum + (player.skillScore ?? 50), 0);
+}
+
 function isThreeToOneMatch(match: MatchLike): boolean {
   const players = [...match.teamA.players, ...match.teamB.players];
   const maleCount = players.filter((player) => player.gender === "남").length;
@@ -367,5 +442,15 @@ function makeGenderedAttendees(count: number, gender: "남" | "여", startNo: nu
     no: startNo + index,
     name: `회원${startNo + index}`,
     skillScore: 50 + (index % 5),
+  }));
+}
+
+function makeNamedAttendees(players: Array<[string, number]>): Attendee[] {
+  return players.map(([name, skillScore], index) => ({
+    ...makeAttendees(1, "여")[0],
+    id: `named-${index + 1}`,
+    no: index + 1,
+    name,
+    skillScore,
   }));
 }

@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 
-import { generateRound } from "@/matching/generateRound";
+import { buildBalancedTeams, generateRound } from "@/matching/generateRound";
 import { fetchTodayAttendees } from "@/services/members";
 import { fetchCurrentSession, saveCurrentSession, SessionConflictError } from "@/services/sessions";
 import type {
@@ -37,7 +37,7 @@ function emptyCourts(count: number): CourtState[] {
   }));
 }
 
-function matchPlayers(match: Pick<Match, "teamA" | "teamB">): Attendee[] {
+function matchPlayers(match: Pick<Match | QueuedMatch, "teamA" | "teamB">): Attendee[] {
   return [...match.teamA.players, ...match.teamB.players];
 }
 
@@ -398,10 +398,12 @@ export const useSessionStore = defineStore("session", {
       if (replacementLocation.kind === "match") {
         replacementLocation.match[replacementLocation.slot.team].players[replacementLocation.slot.playerIndex] =
           currentPlayer;
+        rebalanceMatchTeams(replacementLocation.match);
       } else {
         this.waitingQueue.splice(replacementLocation.index, 1, currentPlayer);
       }
 
+      rebalanceMatchTeams(targetMatch);
       this.updatedAt = new Date().toISOString();
       void this.persistRemoteSession();
       return true;
@@ -551,4 +553,13 @@ function findPlayerInMatch(match: Match | QueuedMatch, playerId: string): Extrac
   }
 
   return null;
+}
+
+function rebalanceMatchTeams(match: Match | QueuedMatch): void {
+  const players = matchPlayers(match);
+  if (players.length !== 4) return;
+
+  const [teamA, teamB] = buildBalancedTeams(players);
+  match.teamA = teamA;
+  match.teamB = teamB;
 }

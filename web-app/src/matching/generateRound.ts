@@ -197,7 +197,7 @@ function playerSelectionScore(attendee: Attendee, stats: Record<string, PlayerRo
   );
 }
 
-function buildBalancedTeams(players: Attendee[]): [Team, Team] {
+export function buildBalancedTeams(players: Attendee[]): [Team, Team] {
   const candidates = [
     [
       [players[0], players[1]],
