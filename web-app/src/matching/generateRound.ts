@@ -25,17 +25,22 @@ export function generateRound(options: GenerateRoundOptions): Round {
   const courtCount = Math.max(0, Math.floor(options.courtCount));
   const gamesPerRound = Math.min(courtCount, Math.floor(options.attendees.length / 4));
 
-  const ordered = options.preserveOrder
-    ? [...options.attendees]
-    : [...options.attendees].sort((a, b) => {
-        const priorityDiff = playerPriority(b, options.stats) - playerPriority(a, options.stats);
+  const ordered = [...options.attendees]
+    .map((attendee, index) => ({ attendee, index }))
+    .sort((a, b) => {
+        const priorityDiff = playerPriority(b.attendee, options.stats) - playerPriority(a.attendee, options.stats);
         if (priorityDiff !== 0) return priorityDiff;
 
-        const seededDiff = seededRank(a.id, options.seed) - seededRank(b.id, options.seed);
+        if (options.preserveOrder) {
+          return a.index - b.index;
+        }
+
+        const seededDiff = seededRank(a.attendee.id, options.seed) - seededRank(b.attendee.id, options.seed);
         if (seededDiff !== 0) return seededDiff;
 
-        return a.name.localeCompare(b.name, "ko");
-      });
+        return a.attendee.name.localeCompare(b.attendee.name, "ko");
+      })
+    .map(({ attendee }) => attendee);
 
   const { groups, waiting } = buildGenderAwareGroups(ordered, gamesPerRound);
   const matches: Match[] = [];

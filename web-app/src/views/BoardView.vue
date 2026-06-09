@@ -131,13 +131,13 @@ function formatTime(value: string): string {
 
     <section class="waiting-panel" aria-label="다음 경기">
       <div class="section-title">
-        <span>다음 경기</span>
-        <strong>{{ session.upcomingMatches.length }}게임</strong>
+        <span>다음 1</span>
+        <strong>{{ session.upcomingMatches.length ? "준비됨" : "없음" }}</strong>
       </div>
 
       <div v-if="visibleUpcomingMatches.length" class="match-list">
-        <article v-for="(match, index) in visibleUpcomingMatches" :key="match.id" class="match-row">
-          <div class="court-badge">다음 {{ index + 1 }}</div>
+        <article v-for="match in visibleUpcomingMatches" :key="match.id" class="match-row">
+          <div class="court-badge">다음 1</div>
           <div class="teams">
             <p>{{ playerNames(match.teamA.players) }}</p>
             <span>vs</span>

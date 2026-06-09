@@ -19,7 +19,7 @@ describe("session store upcoming matches", () => {
     fetchTodayAttendeesMock.mockReset();
   });
 
-  it("prepares upcoming matches from players not assigned to the current courts", () => {
+  it("prepares only the first upcoming match from players not assigned to the current courts", () => {
     const session = useSessionStore();
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
 
@@ -28,8 +28,8 @@ describe("session store upcoming matches", () => {
     session.assignInitialCourts();
 
     expect(session.courts.filter((court) => court.match)).toHaveLength(2);
-    expect(session.upcomingMatches).toHaveLength(2);
-    expect(session.waitingQueue).toHaveLength(0);
+    expect(session.upcomingMatches).toHaveLength(1);
+    expect(session.waitingQueue).toHaveLength(4);
   });
 
   it("assigns the first upcoming match to the court that finishes first", () => {
@@ -46,10 +46,11 @@ describe("session store upcoming matches", () => {
 
     expect(session.courts[0].status).toBe("assigned");
     expect(playersOf(session.courts[0].match)).toEqual(firstUpcomingIds);
-    expect(session.upcomingMatches).toHaveLength(2);
+    expect(session.upcomingMatches).toHaveLength(1);
+    expect(session.waitingQueue).toHaveLength(4);
   });
 
-  it("mixes the remaining upcoming groups with finished players in the common 16-player 2-court case", () => {
+  it("rebuilds one upcoming match from waiting and finished players in the common 16-player 2-court case", () => {
     const session = useSessionStore();
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
 
@@ -58,14 +59,14 @@ describe("session store upcoming matches", () => {
     session.assignInitialCourts();
 
     const finishedGroupKey = groupKey(session.courts[0].match);
-    const oldRemainingUpcomingKey = groupKey(session.upcomingMatches[1]);
 
     session.startCourt(1);
     session.finishCourt(1);
 
     const nextGroupKeys = session.upcomingMatches.map((match) => groupKey(match));
+    expect(session.upcomingMatches).toHaveLength(1);
+    expect(session.waitingQueue).toHaveLength(4);
     expect(nextGroupKeys).not.toContain(finishedGroupKey);
-    expect(nextGroupKeys).not.toContain(oldRemainingUpcomingKey);
   });
 
   it("rebuilds same-gender queued matches from interleaved player groups", () => {
@@ -83,11 +84,12 @@ describe("session store upcoming matches", () => {
 
     const nextGroupKeys = session.upcomingMatches.map((match) => groupKey(match));
 
-    expect(nextGroupKeys).not.toContain(oldGroupA.map((player) => player.id).sort().join("|"));
+    expect(session.upcomingMatches).toHaveLength(1);
+    expect(session.waitingQueue).toHaveLength(4);
     expect(nextGroupKeys).not.toContain(oldGroupB.map((player) => player.id).sort().join("|"));
   });
 
-  it("mixes the remaining upcoming groups with finished players in the common 24-player 3-court case", () => {
+  it("keeps only one upcoming match in the common 24-player 3-court case", () => {
     const session = useSessionStore();
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
 
@@ -95,18 +97,17 @@ describe("session store upcoming matches", () => {
     session.setAttendees(makeAttendees(24, "남"));
     session.assignInitialCourts();
 
-    const staleGroupKeys = new Set([
-      groupKey(session.courts[0].match),
-      groupKey(session.upcomingMatches[1]),
-      groupKey(session.upcomingMatches[2]),
-    ]);
+    expect(session.upcomingMatches).toHaveLength(1);
+    expect(session.waitingQueue).toHaveLength(8);
+
+    const finishedGroupKey = groupKey(session.courts[0].match);
 
     session.startCourt(1);
     session.finishCourt(1);
 
-    session.upcomingMatches.forEach((match) => {
-      expect(staleGroupKeys.has(groupKey(match))).toBe(false);
-    });
+    expect(session.upcomingMatches).toHaveLength(1);
+    expect(session.waitingQueue).toHaveLength(8);
+    expect(groupKey(session.upcomingMatches[0])).not.toBe(finishedGroupKey);
   });
 
   it("can reset an active session by reloading today's attendance records", async () => {

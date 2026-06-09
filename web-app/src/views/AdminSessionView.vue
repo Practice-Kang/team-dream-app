@@ -69,8 +69,8 @@ function formatFetchedAt(value: string | null): string {
     <section class="toolbar" aria-label="세션 설정">
       <span class="mode-badge">운영자</span>
       <button class="toolbar-command" :disabled="!canReloadAttendees" type="button" @click="reloadTodayAttendees">
-        <RefreshCw :size="17" />
-        <span>출석기록</span>
+        <RefreshCw :class="{ spinning: session.attendeesLoading }" :size="17" />
+        <span>{{ session.attendeesLoading ? "불러오는 중" : "출석기록" }}</span>
       </button>
       <label class="court-control">
         <span>코트</span>
@@ -125,13 +125,13 @@ function formatFetchedAt(value: string | null): string {
 
     <section class="waiting-panel" aria-label="다음 경기">
       <div class="section-title">
-        <span>다음 경기</span>
-        <strong>{{ session.upcomingMatches.length }}게임</strong>
+        <span>다음 1</span>
+        <strong>{{ session.upcomingMatches.length ? "준비됨" : "없음" }}</strong>
       </div>
 
       <div v-if="session.upcomingMatches.length" class="match-list">
-        <article v-for="(match, index) in session.upcomingMatches" :key="match.id" class="match-row">
-          <div class="court-badge">다음 {{ index + 1 }}</div>
+        <article v-for="match in session.upcomingMatches" :key="match.id" class="match-row">
+          <div class="court-badge">다음 1</div>
           <div class="teams">
             <p>{{ playerNames(match.teamA.players) }}</p>
             <span>vs</span>
@@ -229,5 +229,13 @@ function formatFetchedAt(value: string | null): string {
         </button>
       </div>
     </section>
+
+    <div v-if="session.attendeesLoading" class="loading-overlay" role="status" aria-live="polite">
+      <div class="loading-panel">
+        <RefreshCw class="spinning" :size="28" />
+        <strong>출석기록 불러오는 중</strong>
+        <span>경기판을 다시 맞추고 있습니다.</span>
+      </div>
+    </div>
   </main>
 </template>

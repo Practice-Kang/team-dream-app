@@ -31,6 +31,36 @@ describe("sessionPersistence", () => {
     expect(restored?.waitingQueue[0]).toBe(restored?.attendees[8]);
   });
 
+  it("keeps only the first queued upcoming match when restoring older multi-upcoming state", () => {
+    const state = makeSessionState();
+    const attendees = makeAttendees(13);
+    const extraUpcomingMatch: QueuedMatch = {
+      id: "queued-2",
+      teamA: {
+        players: [attendees[8], attendees[9]],
+      },
+      teamB: {
+        players: [attendees[10], attendees[11]],
+      },
+    };
+    const payload = JSON.parse(JSON.stringify(createPersistedSessionPayload(state, "2026-06-08T10:00:00.000Z")));
+    payload.state.attendees = attendees;
+    payload.state.upcomingMatches = [state.upcomingMatches[0], extraUpcomingMatch];
+    payload.state.waitingQueue = [attendees[12]];
+
+    const restored = restoreSessionState(payload, Date.parse("2026-06-08T11:00:00.000Z"));
+
+    expect(restored?.upcomingMatches).toHaveLength(1);
+    expect(restored?.upcomingMatches[0].id).toBe("queued-1");
+    expect(restored?.waitingQueue.map((player) => player.name)).toEqual([
+      "회원9",
+      "회원10",
+      "회원11",
+      "회원12",
+      "회원13",
+    ]);
+  });
+
   it("ignores stale saved sessions", () => {
     const state = makeSessionState();
     const payload = createPersistedSessionPayload(state, "2026-06-08T10:00:00.000Z");

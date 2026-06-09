@@ -51,6 +51,29 @@ describe("generateRound", () => {
     expect(round.waiting.map((player) => player.id)).toContain(attendees[0].id);
   });
 
+  it("applies play frequency preference even when preserving queue order", () => {
+    const attendees = makeGenderedAttendees(5, "남", 1).map((attendee) => ({
+      ...attendee,
+      playCount: 1,
+      playFrequencyPreference: "normal" as PlayFrequencyPreference,
+    }));
+    attendees[0].playCount = 2;
+    attendees[0].playFrequencyPreference = "low";
+    attendees[4].playCount = 1;
+    attendees[4].playFrequencyPreference = "high";
+
+    const round = generateRound({
+      attendees,
+      courtCount: 1,
+      preserveOrder: true,
+    });
+
+    const playingIds = new Set(round.matches.flatMap((match) => [...match.teamA.players, ...match.teamB.players]).map((player) => player.id));
+
+    expect(playingIds.has(attendees[4].id)).toBe(true);
+    expect(round.waiting.map((player) => player.id)).toContain(attendees[0].id);
+  });
+
   it("prefers men's and women's doubles before mixed games", () => {
     const attendees = [...makeGenderedAttendees(8, "남", 1), ...makeGenderedAttendees(8, "여", 9)];
 

@@ -608,6 +608,51 @@ button {
   white-space: nowrap;
 }
 
+.spinning {
+  animation: spin 0.9s linear infinite;
+}
+
+.loading-overlay {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  padding: 20px;
+  background: rgba(24, 32, 38, 0.32);
+  place-items: center;
+}
+
+.loading-panel {
+  display: grid;
+  width: min(100%, 320px);
+  gap: 8px;
+  min-height: 152px;
+  padding: 22px;
+  color: #182026;
+  background: #ffffff;
+  border: 1px solid #d7ddd4;
+  border-radius: 8px;
+  box-shadow: 0 18px 42px rgba(24, 32, 38, 0.18);
+  place-items: center;
+  text-align: center;
+}
+
+.loading-panel strong {
+  font-size: 18px;
+}
+
+.loading-panel span {
+  color: #68746e;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .login-screen {
   display: grid;
   align-content: start;

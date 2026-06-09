@@ -377,7 +377,7 @@ export const useSessionStore = defineStore("session", {
 
       const round = generateRound({
         attendees: idlePlayers,
-        courtCount: gameCount,
+        courtCount: Math.min(1, gameCount),
         seed: `upcoming-${this.completedMatches.length}-${this.matchSequence}`,
         preserveOrder: options.preserveOrder !== false,
       });

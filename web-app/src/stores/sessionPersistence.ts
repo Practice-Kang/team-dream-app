@@ -58,6 +58,8 @@ export function createPersistedSessionPayload(state: SessionState, savedAt = new
 }
 
 export function sanitizeSessionState(state: SessionState): SessionState {
+  const { upcomingMatches, waitingQueue } = normalizeUpcomingAndWaiting(state.upcomingMatches, state.waitingQueue);
+
   return {
     id: state.id,
     title: state.title,
@@ -69,8 +71,8 @@ export function sanitizeSessionState(state: SessionState): SessionState {
     attendanceDate: state.attendanceDate,
     sourceMembersCount: state.sourceMembersCount,
     courts: normalizeCourts(state.courts, state.courtCount),
-    upcomingMatches: normalizeQueuedMatches(state.upcomingMatches),
-    waitingQueue: Array.isArray(state.waitingQueue) ? state.waitingQueue : [],
+    upcomingMatches,
+    waitingQueue,
     completedMatches: Array.isArray(state.completedMatches) ? state.completedMatches : [],
     matchSequence: state.matchSequence,
     rounds: Array.isArray(state.rounds) ? state.rounds : [],
@@ -104,6 +106,23 @@ function normalizeQueuedMatches(matches: QueuedMatch[] | undefined): QueuedMatch
   return Array.isArray(matches)
     ? matches.filter((match) => Array.isArray(match.teamA?.players) && Array.isArray(match.teamB?.players))
     : [];
+}
+
+function normalizeUpcomingAndWaiting(
+  matches: QueuedMatch[] | undefined,
+  waitingPlayers: Attendee[] | undefined,
+): Pick<SessionState, "upcomingMatches" | "waitingQueue"> {
+  const normalizedMatches = normalizeQueuedMatches(matches);
+  const [firstMatch, ...extraMatches] = normalizedMatches;
+  const waitingQueue = [
+    ...extraMatches.flatMap((match) => [...match.teamA.players, ...match.teamB.players]),
+    ...(Array.isArray(waitingPlayers) ? waitingPlayers : []),
+  ];
+
+  return {
+    upcomingMatches: firstMatch ? [firstMatch] : [],
+    waitingQueue,
+  };
 }
 
 function relinkAttendeeReferences(state: SessionState): void {
