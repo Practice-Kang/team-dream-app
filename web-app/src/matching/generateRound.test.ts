@@ -168,6 +168,31 @@ describe("generateRound", () => {
     expect(match.teamB.players.map((player) => player.gender).sort()).toEqual(["남", "여"]);
   });
 
+  it("balances total team score when mixed-match gender splits are equivalent", () => {
+    const attendees = [
+      makeNamedAttendee(1, "백동주", "남", 90),
+      makeNamedAttendee(2, "박수란", "여", 90),
+      makeNamedAttendee(3, "박영은", "여", 80),
+      makeNamedAttendee(4, "정가람", "남", 80),
+    ];
+
+    const round = generateRound({
+      attendees,
+      courtCount: 1,
+      seed: "mixed-total-balance",
+      preserveOrder: true,
+    });
+
+    const [match] = round.matches;
+    const teamScores = [totalScore(match.teamA.players), totalScore(match.teamB.players)].sort((a, b) => a - b);
+    const teamNames = [namesOf(match.teamA.players), namesOf(match.teamB.players)].sort((a, b) =>
+      a.localeCompare(b, "ko"),
+    );
+
+    expect(teamScores).toEqual([170, 170]);
+    expect(teamNames).toEqual(["박수란+정가람", "박영은+백동주"]);
+  });
+
   it("breaks same-gender groups when an interleaved waiting queue is preserved", () => {
     const oldGroupA = [3, 5, 7, 9].map((no) => makeAttendee(no, "남", 50));
     const oldGroupB = [10, 12, 14, 16].map((no) => makeAttendee(no, "남", 50));
@@ -228,6 +253,13 @@ function makeAttendee(no: number, gender: "남" | "여", skillScore: number): At
   };
 }
 
+function makeNamedAttendee(no: number, name: string, gender: "남" | "여", skillScore: number): Attendee {
+  return {
+    ...makeAttendee(no, gender, skillScore),
+    name,
+  };
+}
+
 function playersOf(match: { teamA: { players: Attendee[] }; teamB: { players: Attendee[] } }): Attendee[] {
   return [...match.teamA.players, ...match.teamB.players];
 }
@@ -252,4 +284,15 @@ function countMatchGenders(match: { teamA: { players: Attendee[] }; teamB: { pla
 function isThreeToOneMatch(match: { teamA: { players: Attendee[] }; teamB: { players: Attendee[] } }): boolean {
   const counts = countMatchGenders(match);
   return (counts.남 === 3 && counts.여 === 1) || (counts.남 === 1 && counts.여 === 3);
+}
+
+function totalScore(players: Attendee[]): number {
+  return players.reduce((sum, player) => sum + (player.skillScore ?? 50), 0);
+}
+
+function namesOf(players: Attendee[]): string {
+  return players
+    .map((player) => player.name)
+    .sort((a, b) => a.localeCompare(b, "ko"))
+    .join("+");
 }

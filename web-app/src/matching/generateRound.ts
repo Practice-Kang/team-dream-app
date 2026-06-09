@@ -239,7 +239,20 @@ function teamSplitScore(teamA: Attendee[], teamB: Attendee[]): number {
     Math.abs(countGender(teamA, "남") - countGender(teamB, "남")) +
     Math.abs(countGender(teamA, "여") - countGender(teamB, "여"));
 
-  return genderCompositionPenalty * 100 + genderSkillDiff(teamA, teamB, "남") + genderSkillDiff(teamA, teamB, "여");
+  return (
+    genderCompositionPenalty * 100 +
+    genderSkillDiff(teamA, teamB, "남") +
+    genderSkillDiff(teamA, teamB, "여") +
+    totalSkillDiff(teamA, teamB)
+  );
+}
+
+function totalSkillDiff(teamA: Attendee[], teamB: Attendee[]): number {
+  return Math.abs(totalScore(teamA) - totalScore(teamB));
+}
+
+function totalScore(players: Attendee[]): number {
+  return players.reduce((sum, player) => sum + scoreOf(player), 0);
 }
 
 function genderSkillDiff(teamA: Attendee[], teamB: Attendee[], gender: Gender): number {
