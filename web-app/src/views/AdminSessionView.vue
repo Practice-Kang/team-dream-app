@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted } from "vue";
-import { Copy, Database, LogOut, Play, RefreshCw } from "@lucide/vue";
+import { Copy, Database, LogOut, Play, RefreshCw, Undo2 } from "@lucide/vue";
 import { useRouter } from "vue-router";
 
 import AppHeader from "@/components/AppHeader.vue";
@@ -71,6 +71,16 @@ function formatFetchedAt(value: string | null): string {
       <button class="toolbar-command" :disabled="!canReloadAttendees" type="button" @click="reloadTodayAttendees">
         <RefreshCw :class="{ spinning: session.attendeesLoading }" :size="17" />
         <span>{{ session.attendeesLoading ? "불러오는 중" : "출석기록" }}</span>
+      </button>
+      <button
+        class="toolbar-command"
+        :disabled="!session.canUndo || session.syncStatus === 'saving'"
+        :title="session.lastUndoLabel ? `${session.lastUndoLabel}으로 되돌리기` : '되돌릴 변경 없음'"
+        type="button"
+        @click="session.undoLastChange"
+      >
+        <Undo2 :size="17" />
+        <span>되돌리기</span>
       </button>
       <label class="court-control">
         <span>코트</span>

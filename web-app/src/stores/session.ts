@@ -14,9 +14,10 @@ import type {
 } from "@/shared/domain";
 import { releaseForbiddenThreeToOnePendingMatches } from "@/shared/matchPolicy";
 import { CURRENT_SESSION_ID, MATCHING_POLICY_VERSION, type RemoteSessionSnapshot } from "@/shared/sessionSource";
-import { sanitizeSessionState } from "@/stores/sessionPersistence";
+import { createSessionSnapshot, sanitizeSessionState } from "@/stores/sessionPersistence";
 
 type SyncStatus = "idle" | "loading" | "saving" | "error";
+const MAX_UNDO_STACK_SIZE = 10;
 
 interface SessionStoreState extends SessionState {
   remoteVersion: number | null;
@@ -77,6 +78,7 @@ function defaultSessionState(): SessionState {
     rounds: [],
     currentRoundIndex: 0,
     updatedAt: null,
+    undoStack: [],
   };
 }
 
@@ -103,6 +105,8 @@ export const useSessionStore = defineStore("session", {
       state.waitingQueue.length +
       state.upcomingMatches.reduce((count, match) => count + matchPlayers(match).length, 0),
     completedGameCount: (state) => state.completedMatches.length,
+    canUndo: (state) => state.undoStack.length > 0,
+    lastUndoLabel: (state) => state.undoStack.at(-1)?.label ?? null,
     hasInProgressCourt: (state) => state.courts.some((court) => court.status === "inProgress"),
     hasAssignedCourt: (state) => state.courts.some((court) => court.match),
     currentRound: (state) => {
@@ -189,6 +193,7 @@ export const useSessionStore = defineStore("session", {
 
       this.attendeesLoading = true;
       this.attendeesError = null;
+      const undoEntry = options.resetSession && hasMeaningfulSession(this) ? createUndoEntry(this, "출석기록 새로고침 전") : null;
 
       try {
         const response = await fetchTodayAttendees();
@@ -207,6 +212,7 @@ export const useSessionStore = defineStore("session", {
         this.currentRoundIndex = 0;
         this.matchSequence = 0;
         this.updatedAt = response.fetchedAt;
+        this.undoStack = undoEntry ? appendUndoEntry(this.undoStack, undoEntry) : [];
         await this.persistRemoteSession();
       } catch (error) {
         this.attendeesError = error instanceof Error ? error.message : "오늘 참석자를 불러오지 못했습니다.";
@@ -216,6 +222,9 @@ export const useSessionStore = defineStore("session", {
     },
     setCourtCount(count: number) {
       const nextCount = Math.max(1, Math.floor(count));
+      if (nextCount === this.courtCount) return;
+
+      this.pushUndo("코트 수 변경 전");
       const currentCourts = this.courts.slice(0, nextCount);
 
       while (currentCourts.length < nextCount) {
@@ -237,14 +246,16 @@ export const useSessionStore = defineStore("session", {
       void this.persistRemoteSession();
     },
     setAttendees(attendees: Attendee[]) {
+      this.pushUndo("참석자 변경 전");
       this.attendees = attendees;
       this.updatedAt = new Date().toISOString();
       void this.persistRemoteSession();
     },
     setFrequencyPreference(attendeeId: string, preference: PlayFrequencyPreference) {
       const attendee = this.attendees.find((candidate) => candidate.id === attendeeId);
-      if (!attendee) return;
+      if (!attendee || attendee.playFrequencyPreference === preference) return;
 
+      this.pushUndo("빈도 변경 전");
       attendee.playFrequencyPreference = preference;
       this.updatedAt = new Date().toISOString();
       void this.persistRemoteSession();
@@ -253,6 +264,7 @@ export const useSessionStore = defineStore("session", {
       const attendee = this.attendees.find((candidate) => candidate.id === attendeeId);
       if (!attendee) return;
 
+      this.pushUndo("대기 상태 변경 전");
       attendee.queueStatus = attendee.queueStatus === status ? "normal" : status;
       this.updatedAt = new Date().toISOString();
       this.rebuildUpcomingMatchesFromGroups([
@@ -267,6 +279,7 @@ export const useSessionStore = defineStore("session", {
     assignInitialCourts() {
       if (this.hasInProgressCourt) return;
 
+      this.pushUndo(this.hasAssignedCourt || this.upcomingMatches.length > 0 || this.waitingQueue.length > 0 ? "코트 재배정 전" : "첫 코트 배정 전");
       const round = generateRound({
         attendees: this.attendees,
         courtCount: this.courtCount,
@@ -298,7 +311,9 @@ export const useSessionStore = defineStore("session", {
     assignSingleCourt(courtNumber: number) {
       const court = this.courts.find((candidate) => candidate.courtNumber === courtNumber);
       if (!court || court.status !== "empty") return;
+      if (this.upcomingMatches.length === 0 && this.waitingQueue.length < 4) return;
 
+      this.pushUndo(`${courtNumber}코트 배정 전`);
       if (this.upcomingMatches.length === 0) {
         this.rebuildUpcomingMatchesFromGroups([this.waitingQueue]);
       }
@@ -323,6 +338,7 @@ export const useSessionStore = defineStore("session", {
       const court = this.courts.find((candidate) => candidate.courtNumber === courtNumber);
       if (!court || court.status !== "assigned") return;
 
+      this.pushUndo(`${courtNumber}코트 시작 전`);
       court.status = "inProgress";
       court.startedAt = new Date().toISOString();
       this.updatedAt = court.startedAt;
@@ -332,6 +348,7 @@ export const useSessionStore = defineStore("session", {
       const court = this.courts.find((candidate) => candidate.courtNumber === courtNumber);
       if (!court?.match || court.status !== "inProgress") return;
 
+      this.pushUndo(`${courtNumber}코트 종료 전`);
       const completedAt = new Date().toISOString();
       const finishedPlayers = matchPlayers(court.match);
 
@@ -368,6 +385,23 @@ export const useSessionStore = defineStore("session", {
 
       this.updatedAt = completedAt;
       void this.persistRemoteSession();
+    },
+    undoLastChange() {
+      const undoEntry = this.undoStack.at(-1);
+      if (!undoEntry) return;
+
+      const restored = sanitizeSessionState({
+        ...undoEntry.state,
+        matchingPolicyVersion: MATCHING_POLICY_VERSION,
+        undoStack: this.undoStack.slice(0, -1),
+        updatedAt: new Date().toISOString(),
+      });
+      releaseForbiddenThreeToOnePendingMatches(restored);
+      Object.assign(this, restored);
+      void this.persistRemoteSession();
+    },
+    pushUndo(label: string) {
+      this.undoStack = appendUndoEntry(this.undoStack, createUndoEntry(this, label));
     },
     rebuildUpcomingMatchesFromGroups(groups: Attendee[][], options: { preserveOrder?: boolean } = {}) {
       const idlePlayers = options.preserveOrder === false ? groups.flat() : interleavePlayerGroups(groups);
@@ -411,3 +445,25 @@ export const useSessionStore = defineStore("session", {
     },
   },
 });
+
+function createUndoEntry(state: SessionState, label: string) {
+  return {
+    label,
+    createdAt: new Date().toISOString(),
+    state: createSessionSnapshot(state),
+  };
+}
+
+function appendUndoEntry<T>(stack: T[], entry: T): T[] {
+  return [...stack, entry].slice(-MAX_UNDO_STACK_SIZE);
+}
+
+function hasMeaningfulSession(state: SessionState): boolean {
+  return (
+    state.attendees.length > 0 ||
+    state.courts.some((court) => court.match) ||
+    state.upcomingMatches.length > 0 ||
+    state.waitingQueue.length > 0 ||
+    state.completedMatches.length > 0
+  );
+}

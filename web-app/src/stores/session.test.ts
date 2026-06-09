@@ -50,6 +50,51 @@ describe("session store upcoming matches", () => {
     expect(session.waitingQueue).toHaveLength(4);
   });
 
+  it("can undo an accidental court start", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+
+    session.setCourtCount(2);
+    session.setAttendees(makeAttendees(8, "남"));
+    session.assignInitialCourts();
+    session.startCourt(1);
+
+    expect(session.courts[0].status).toBe("inProgress");
+    expect(session.canUndo).toBe(true);
+
+    session.undoLastChange();
+
+    expect(session.courts[0].status).toBe("assigned");
+    expect(session.courts[0].startedAt).toBeNull();
+  });
+
+  it("can undo an accidental court finish including play counts and queued matches", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+
+    session.setCourtCount(2);
+    session.setAttendees(makeAttendees(16, "남"));
+    session.assignInitialCourts();
+    session.startCourt(1);
+
+    const beforeFinishCourtPlayers = playersOf(session.courts[0].match);
+    const beforeFinishUpcoming = playersOf(session.upcomingMatches[0]);
+
+    session.finishCourt(1);
+
+    expect(session.completedGameCount).toBe(1);
+    expect(playersOf(session.courts[0].match)).toEqual(beforeFinishUpcoming);
+
+    session.undoLastChange();
+
+    expect(session.completedGameCount).toBe(0);
+    expect(session.courts[0].status).toBe("inProgress");
+    expect(playersOf(session.courts[0].match)).toEqual(beforeFinishCourtPlayers);
+    expect(playersOf(session.upcomingMatches[0])).toEqual(beforeFinishUpcoming);
+    expect(session.courts[0].match?.teamA.players.every((player) => player.playCount === 0)).toBe(true);
+    expect(session.courts[0].match?.teamB.players.every((player) => player.playCount === 0)).toBe(true);
+  });
+
   it("rebuilds one upcoming match from waiting and finished players in the common 16-player 2-court case", () => {
     const session = useSessionStore();
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);

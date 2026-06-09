@@ -78,6 +78,14 @@ export interface PlayerRoundStats {
   playedPreviousRound: boolean;
 }
 
+export type SessionSnapshot = Omit<SessionState, "undoStack">;
+
+export interface SessionUndoEntry {
+  label: string;
+  createdAt: string;
+  state: SessionSnapshot;
+}
+
 export interface SessionState {
   id: string | null;
   matchingPolicyVersion: number;
@@ -98,6 +106,7 @@ export interface SessionState {
   rounds: Round[];
   currentRoundIndex: number;
   updatedAt: string | null;
+  undoStack: SessionUndoEntry[];
 }
 
 export function effectiveGamesPlayed(attendee: Pick<Attendee, "playCount" | "playFrequencyPreference">): number {

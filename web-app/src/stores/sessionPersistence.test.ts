@@ -138,6 +138,7 @@ function makeSessionState(): SessionState {
     rounds: [],
     currentRoundIndex: 0,
     updatedAt: "2026-06-08T10:05:00.000Z",
+    undoStack: [],
   };
 }
 

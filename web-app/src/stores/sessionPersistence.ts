@@ -1,9 +1,10 @@
-import type { Attendee, CourtState, QueuedMatch, SessionState } from "@/shared/domain";
+import type { Attendee, CourtState, QueuedMatch, SessionSnapshot, SessionState, SessionUndoEntry } from "@/shared/domain";
 import { todayDateKey } from "@/shared/dateKey";
 
 const SESSION_STORAGE_KEY = "team-dream.session.v1";
 const SESSION_STORAGE_VERSION = 1;
 const MAX_PERSISTED_SESSION_AGE_MS = 18 * 60 * 60 * 1000;
+const MAX_UNDO_STACK_SIZE = 10;
 
 interface PersistedSessionPayload {
   version: typeof SESSION_STORAGE_VERSION;
@@ -80,7 +81,13 @@ export function sanitizeSessionState(state: SessionState): SessionState {
     currentRoundIndex: state.currentRoundIndex,
     updatedAt: state.updatedAt,
     unmatchedAttendanceNames: Array.isArray(state.unmatchedAttendanceNames) ? state.unmatchedAttendanceNames : [],
+    undoStack: normalizeUndoStack(state.undoStack),
   };
+}
+
+export function createSessionSnapshot(state: SessionState): SessionSnapshot {
+  const { undoStack: _undoStack, ...snapshot } = sanitizeSessionState(state);
+  return cloneJson(snapshot);
 }
 
 function normalizeCourts(courts: CourtState[], courtCount: number): CourtState[] {
@@ -126,6 +133,29 @@ function normalizeUpcomingAndWaiting(
   };
 }
 
+function normalizeUndoStack(value: SessionUndoEntry[] | undefined): SessionUndoEntry[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((entry) => typeof entry?.label === "string" && typeof entry.createdAt === "string" && entry.state)
+    .slice(-MAX_UNDO_STACK_SIZE)
+    .map((entry) => ({
+      label: entry.label,
+      createdAt: entry.createdAt,
+      state: normalizeUndoSnapshot(entry.state),
+    }));
+}
+
+function normalizeUndoSnapshot(state: SessionSnapshot): SessionSnapshot {
+  const sanitized = sanitizeSessionState({
+    ...state,
+    undoStack: [],
+  });
+  const { undoStack: _undoStack, ...snapshot } = sanitized;
+
+  return snapshot;
+}
+
 function relinkAttendeeReferences(state: SessionState): void {
   const attendeesById = new Map(state.attendees.map((attendee) => [attendee.id, attendee]));
 
@@ -146,6 +176,10 @@ function relinkAttendeeReferences(state: SessionState): void {
 
 function attendeeReference(player: Attendee, attendeesById: Map<string, Attendee>): Attendee {
   return attendeesById.get(player.id) ?? player;
+}
+
+function cloneJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
 }
 
 function isPersistedSessionPayload(value: unknown): value is PersistedSessionPayload {
