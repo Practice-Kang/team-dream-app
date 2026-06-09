@@ -1,5 +1,6 @@
 import { effectiveGamesPlayed } from "@/shared/domain";
 import type { Attendee, Gender, Match, PlayerRoundStats, Round, Team } from "@/shared/domain";
+import { createsForbiddenThreeToOneMixedRemainder, isForbiddenThreeToOnePlayers } from "@/shared/matchPolicy";
 
 export interface GenerateRoundOptions {
   attendees: Attendee[];
@@ -17,6 +18,7 @@ interface RankedAttendee {
 interface GenderUsePlan {
   maleCount: number;
   femaleCount: number;
+  gameCount: number;
   score: number;
   rankPenalty: number;
 }
@@ -45,8 +47,8 @@ export function generateRound(options: GenerateRoundOptions): Round {
   const { groups, waiting } = buildGenderAwareGroups(ordered, gamesPerRound);
   const matches: Match[] = [];
 
-  for (let index = 0; index < gamesPerRound; index += 1) {
-    const group = groups[index] ?? [];
+  for (let index = 0; index < groups.length; index += 1) {
+    const group = groups[index];
     const [teamA, teamB] = buildBalancedTeams(group);
 
     matches.push({
@@ -74,6 +76,9 @@ function buildGenderAwareGroups(ordered: Attendee[], gamesPerRound: number): { g
   const males = ranked.filter((player) => player.attendee.gender === "남");
   const females = ranked.filter((player) => player.attendee.gender === "여");
   const plan = chooseGenderUsePlan(males, females, gamesPerRound);
+  if (!plan) {
+    return { groups: [], waiting: ordered };
+  }
 
   const selectedMales = males.slice(0, plan.maleCount);
   const selectedFemales = females.slice(0, plan.femaleCount);
@@ -86,30 +91,34 @@ function buildGenderAwareGroups(ordered: Attendee[], gamesPerRound: number): { g
   };
 }
 
-function chooseGenderUsePlan(males: RankedAttendee[], females: RankedAttendee[], gamesPerRound: number): GenderUsePlan {
-  const playersNeeded = gamesPerRound * 4;
-  const minMaleCount = Math.max(0, playersNeeded - females.length);
-  const maxMaleCount = Math.min(males.length, playersNeeded);
+function chooseGenderUsePlan(males: RankedAttendee[], females: RankedAttendee[], gamesPerRound: number): GenderUsePlan | null {
   let bestPlan: GenderUsePlan | null = null;
 
-  for (let maleCount = minMaleCount; maleCount <= maxMaleCount; maleCount += 1) {
-    const femaleCount = playersNeeded - maleCount;
-    if (femaleCount < 0 || femaleCount > females.length) continue;
+  for (let gameCount = gamesPerRound; gameCount >= 1; gameCount -= 1) {
+    const playersNeeded = gameCount * 4;
+    const minMaleCount = Math.max(0, playersNeeded - females.length);
+    const maxMaleCount = Math.min(males.length, playersNeeded);
 
-    const sameGenderGames = Math.floor(maleCount / 4) + Math.floor(femaleCount / 4);
-    const mixedGames = gamesPerRound - sameGenderGames;
-    const rankPenalty = sumRanks(males, maleCount) + sumRanks(females, femaleCount);
-    const strandedPenalty =
-      strandedSmallGenderPenalty(males.length, maleCount) + strandedSmallGenderPenalty(females.length, femaleCount);
-    const score = sameGenderGames * 1000 - mixedGames * 100 - strandedPenalty - rankPenalty * 0.01;
-    const plan = { maleCount, femaleCount, score, rankPenalty };
+    for (let maleCount = minMaleCount; maleCount <= maxMaleCount; maleCount += 1) {
+      const femaleCount = playersNeeded - maleCount;
+      if (femaleCount < 0 || femaleCount > females.length) continue;
+      if (createsForbiddenThreeToOneMixedRemainder(maleCount, femaleCount)) continue;
 
-    if (!bestPlan || isBetterGenderUsePlan(plan, bestPlan)) {
-      bestPlan = plan;
+      const sameGenderGames = Math.floor(maleCount / 4) + Math.floor(femaleCount / 4);
+      const mixedGames = gameCount - sameGenderGames;
+      const rankPenalty = sumRanks(males, maleCount) + sumRanks(females, femaleCount);
+      const strandedPenalty =
+        strandedSmallGenderPenalty(males.length, maleCount) + strandedSmallGenderPenalty(females.length, femaleCount);
+      const score = gameCount * 10000 + sameGenderGames * 1000 - mixedGames * 100 - strandedPenalty - rankPenalty * 0.01;
+      const plan = { maleCount, femaleCount, gameCount, score, rankPenalty };
+
+      if (!bestPlan || isBetterGenderUsePlan(plan, bestPlan)) {
+        bestPlan = plan;
+      }
     }
   }
 
-  return bestPlan ?? { maleCount: 0, femaleCount: 0, score: 0, rankPenalty: 0 };
+  return bestPlan;
 }
 
 function isBetterGenderUsePlan(candidate: GenderUsePlan, current: GenderUsePlan): boolean {
@@ -149,7 +158,7 @@ function buildGroupsFromSelectedPlayers(selectedMales: RankedAttendee[], selecte
     ...selectedMales.slice(maleSameGroupCount * 4),
     ...selectedFemales.slice(femaleSameGroupCount * 4),
   ].sort((a, b) => a.rank - b.rank);
-  if (mixedGroup.length > 0) {
+  if (mixedGroup.length > 0 && !isForbiddenThreeToOnePlayers(mixedGroup.map((player) => player.attendee))) {
     groups.push(mixedGroup);
   }
 

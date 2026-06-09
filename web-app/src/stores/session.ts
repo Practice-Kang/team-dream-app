@@ -12,6 +12,7 @@ import type {
   QueueStatus,
   SessionState,
 } from "@/shared/domain";
+import { releaseForbiddenThreeToOnePendingMatches } from "@/shared/matchPolicy";
 import { CURRENT_SESSION_ID, MATCHING_POLICY_VERSION, type RemoteSessionSnapshot } from "@/shared/sessionSource";
 import { sanitizeSessionState } from "@/stores/sessionPersistence";
 
@@ -150,6 +151,7 @@ export const useSessionStore = defineStore("session", {
     applyRemoteSession(snapshot: RemoteSessionSnapshot) {
       const state = sanitizeSessionState(snapshot.state);
       state.matchingPolicyVersion = MATCHING_POLICY_VERSION;
+      releaseForbiddenThreeToOnePendingMatches(state);
 
       Object.assign(this, state, {
         remoteVersion: snapshot.version,
@@ -168,6 +170,7 @@ export const useSessionStore = defineStore("session", {
           ...sanitizeSessionState(this),
           matchingPolicyVersion: MATCHING_POLICY_VERSION,
         };
+        releaseForbiddenThreeToOnePendingMatches(state);
         const snapshot = await saveCurrentSession(state, this.remoteVersion);
         this.applyRemoteSession(snapshot);
       } catch (error) {

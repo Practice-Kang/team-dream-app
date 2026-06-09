@@ -89,6 +89,18 @@ describe("session store upcoming matches", () => {
     expect(nextGroupKeys).not.toContain(oldGroupB.map((player) => player.id).sort().join("|"));
   });
 
+  it("does not rebuild a 3-to-1 upcoming match from uneven idle players", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+    const idlePlayers = [...makeGenderedAttendees(10, "남", 1), ...makeGenderedAttendees(2, "여", 11)];
+
+    session.rebuildUpcomingMatchesFromGroups([idlePlayers]);
+
+    expect(session.upcomingMatches).toHaveLength(1);
+    expect(isThreeToOneMatch(session.upcomingMatches[0])).toBe(false);
+    expect(session.waitingQueue).toHaveLength(8);
+  });
+
   it("keeps only one upcoming match in the common 24-player 3-court case", () => {
     const session = useSessionStore();
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
@@ -167,6 +179,14 @@ function playersOf(match: MatchLike | null): string[] {
 
 function groupKey(match: MatchLike | null): string {
   return playersOf(match).sort().join("|");
+}
+
+function isThreeToOneMatch(match: MatchLike): boolean {
+  const players = [...match.teamA.players, ...match.teamB.players];
+  const maleCount = players.filter((player) => player.gender === "남").length;
+  const femaleCount = players.filter((player) => player.gender === "여").length;
+
+  return (maleCount === 3 && femaleCount === 1) || (maleCount === 1 && femaleCount === 3);
 }
 
 function makeAttendees(count: number, gender?: "남" | "여"): Attendee[] {

@@ -104,7 +104,7 @@ describe("generateRound", () => {
     );
   });
 
-  it("uses a mixed match only for a stranded gender group", () => {
+  it("does not create a 3-to-1 mixed match for a stranded gender group", () => {
     const attendees = [...makeGenderedAttendees(12, "남", 1), ...makeGenderedAttendees(1, "여", 13)];
 
     const round = generateRound({
@@ -116,10 +116,36 @@ describe("generateRound", () => {
     const genderCounts = round.matches.map((match) => countMatchGenders(match));
 
     expect(round.matches).toHaveLength(3);
-    expect(genderCounts.filter((counts) => counts.남 === 4 && counts.여 === 0)).toHaveLength(2);
-    expect(genderCounts).toContainEqual({ 남: 3, 여: 1 });
+    expect(genderCounts.every((counts) => counts.남 === 4 && counts.여 === 0)).toBe(true);
     expect(round.waiting).toHaveLength(1);
-    expect(round.waiting[0].gender).toBe("남");
+    expect(round.waiting[0].gender).toBe("여");
+  });
+
+  it("leaves everyone waiting when the only possible match is 3-to-1 mixed", () => {
+    const attendees = [...makeGenderedAttendees(3, "남", 1), ...makeGenderedAttendees(1, "여", 4)];
+
+    const round = generateRound({
+      attendees,
+      courtCount: 1,
+      seed: "forbidden-3-1",
+    });
+
+    expect(round.matches).toHaveLength(0);
+    expect(round.waiting).toHaveLength(4);
+  });
+
+  it("uses fewer courts instead of creating a 3-to-1 mixed match", () => {
+    const attendees = [...makeGenderedAttendees(7, "남", 1), ...makeGenderedAttendees(5, "여", 8)];
+
+    const round = generateRound({
+      attendees,
+      courtCount: 3,
+      seed: "avoid-3-1-with-fewer-courts",
+    });
+
+    expect(round.matches).toHaveLength(2);
+    expect(round.matches.some((match) => isThreeToOneMatch(match))).toBe(false);
+    expect(round.waiting).toHaveLength(4);
   });
 
   it("keeps mixed-match teams gender-balanced without treating male and female scores as the same scale", () => {
@@ -221,4 +247,9 @@ function countMatchGenders(match: { teamA: { players: Attendee[] }; teamB: { pla
     }),
     { 남: 0, 여: 0 },
   );
+}
+
+function isThreeToOneMatch(match: { teamA: { players: Attendee[] }; teamB: { players: Attendee[] } }): boolean {
+  const counts = countMatchGenders(match);
+  return (counts.남 === 3 && counts.여 === 1) || (counts.남 === 1 && counts.여 === 3);
 }

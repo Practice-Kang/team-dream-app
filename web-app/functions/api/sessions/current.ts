@@ -1,6 +1,7 @@
 import { verifyAdminRequest, type AuthEnv } from "../auth/_shared";
 import { todayDateKey } from "../../../src/shared/dateKey";
 import type { SessionState } from "../../../src/shared/domain";
+import { hasForbiddenThreeToOnePendingMatch, releaseForbiddenThreeToOnePendingMatches } from "../../../src/shared/matchPolicy";
 import { CURRENT_SESSION_ID, MATCHING_POLICY_VERSION } from "../../../src/shared/sessionSource";
 
 const SESSION_TTL_SECONDS = 6 * 60 * 60;
@@ -59,6 +60,15 @@ export const onRequestPut: PagesFunction<SessionEnv> = async ({ env, request }) 
         message: "새 매칭 정책이 배포되었습니다. 운영자 화면을 새로고침한 뒤 다시 시도해주세요.",
       },
       { status: 412 },
+    );
+  }
+
+  if (hasForbiddenThreeToOnePendingMatch(body.state)) {
+    return Response.json(
+      {
+        message: "남3여1 또는 여3남1 조합은 허용하지 않습니다. 최신 상태를 불러온 뒤 다시 배정해주세요.",
+      },
+      { status: 422 },
     );
   }
 
@@ -132,11 +142,14 @@ async function readCurrentSessionRow(db: D1Database): Promise<SessionRow | null>
 }
 
 function toResponseBody(row: SessionRow) {
+  const session = {
+    ...(JSON.parse(row.payload) as SessionState),
+    id: row.id,
+  };
+  releaseForbiddenThreeToOnePendingMatches(session);
+
   return {
-    session: {
-      ...(JSON.parse(row.payload) as SessionState),
-      id: row.id,
-    },
+    session,
     version: row.version,
     updatedAt: row.updated_at,
   };
