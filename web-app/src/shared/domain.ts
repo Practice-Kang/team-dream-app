@@ -24,6 +24,7 @@ export interface Member {
   gender: Gender;
   isStaff: boolean;
   isExempt: boolean;
+  isGuest?: boolean;
 }
 
 export interface Attendee extends Member {
@@ -31,6 +32,12 @@ export interface Attendee extends Member {
   playCount: number;
   waitCount: number;
   playFrequencyPreference: PlayFrequencyPreference;
+}
+
+export interface GuestAttendeeInput {
+  name: string;
+  gender: Gender;
+  skillScore: number;
 }
 
 export interface Team {

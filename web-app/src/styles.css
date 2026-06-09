@@ -196,6 +196,67 @@ button {
   margin-bottom: 18px;
 }
 
+.guest-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 104px 86px 92px;
+  gap: 8px;
+  align-items: end;
+}
+
+.guest-field {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.guest-field span {
+  color: #4f5a54;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.guest-field input {
+  width: 100%;
+  min-height: 48px;
+  min-width: 0;
+  padding: 0 10px;
+  color: #182026;
+  background: #ffffff;
+  border: 1px solid #d7ddd4;
+  border-radius: 8px;
+  outline: none;
+}
+
+.guest-field input:focus {
+  border-color: #1d7a54;
+  box-shadow: 0 0 0 3px #ddefe3;
+}
+
+.guest-gender-control {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.guest-gender-control button {
+  min-height: 48px;
+  color: #4f5a54;
+  background: #ffffff;
+  border: 1px solid #d7ddd4;
+  border-radius: 8px;
+  font-weight: 900;
+}
+
+.guest-gender-control button.active {
+  color: #ffffff;
+  background: #1d7a54;
+  border-color: #1d7a54;
+}
+
+.guest-add-command {
+  min-height: 48px;
+}
+
 .command,
 .icon-command {
   display: inline-flex;
@@ -231,6 +292,7 @@ button {
 
 .round-summary,
 .member-panel,
+.guest-panel,
 .waiting-panel,
 .court-board {
   margin-bottom: 14px;
@@ -662,6 +724,28 @@ button {
   font-weight: 900;
 }
 
+.inline-chip {
+  display: inline-flex;
+  min-height: 20px;
+  align-items: center;
+  padding: 2px 6px;
+  color: #174631;
+  background: #e8f3eb;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 900;
+  vertical-align: middle;
+}
+
+.attendee-main .inline-chip,
+.candidate-main .inline-chip,
+.editor-slot .inline-chip,
+.queue-body .inline-chip,
+.team-line .inline-chip {
+  color: #174631;
+  font-size: 11px;
+}
+
 .frequency-control {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -932,6 +1016,10 @@ button {
   }
 
   .primary-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .guest-form {
     grid-template-columns: 1fr;
   }
 

@@ -120,7 +120,10 @@ function playersOf(match: Pick<Match | QueuedMatch, "teamA" | "teamB">): Attende
                 @click="selectSlot('teamA', index)"
               >
                 <strong>{{ player.name }}</strong>
-                <span>{{ player.gender }} · {{ player.skillScore ?? "-" }}점</span>
+                <span>
+                  <small v-if="player.isGuest" class="inline-chip">게스트</small>
+                  {{ player.gender }} · {{ player.skillScore ?? "-" }}점
+                </span>
               </button>
             </section>
 
@@ -135,7 +138,10 @@ function playersOf(match: Pick<Match | QueuedMatch, "teamA" | "teamB">): Attende
                 @click="selectSlot('teamB', index)"
               >
                 <strong>{{ player.name }}</strong>
-                <span>{{ player.gender }} · {{ player.skillScore ?? "-" }}점</span>
+                <span>
+                  <small v-if="player.isGuest" class="inline-chip">게스트</small>
+                  {{ player.gender }} · {{ player.skillScore ?? "-" }}점
+                </span>
               </button>
             </section>
           </div>
@@ -155,7 +161,10 @@ function playersOf(match: Pick<Match | QueuedMatch, "teamA" | "teamB">): Attende
               @click="selectCandidate(candidate.player.id)"
             >
               <span class="candidate-main">
-                <strong>{{ candidate.player.name }}</strong>
+                <strong>
+                  {{ candidate.player.name }}
+                  <small v-if="candidate.player.isGuest" class="inline-chip">게스트</small>
+                </strong>
                 <small>
                   {{ candidate.player.gender }} · {{ candidate.player.level || "급수 없음" }} ·
                   {{ candidate.player.skillScore ?? "-" }}점

@@ -32,6 +32,54 @@ describe("session store upcoming matches", () => {
     expect(session.waitingQueue).toHaveLength(4);
   });
 
+  it("adds a guest as a normal-frequency attendee before the first assignment", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+
+    session.setCourtCount(1);
+    session.setAttendees(makeAttendees(3, "여"));
+
+    const guest = session.addGuestAttendee({
+      name: "  게스트A  ",
+      gender: "여",
+      skillScore: 88.4,
+    });
+
+    expect(guest?.isGuest).toBe(true);
+    expect(guest?.name).toBe("게스트A");
+    expect(guest?.skillScore).toBe(88);
+    expect(guest?.playFrequencyPreference).toBe("normal");
+    expect(session.guestCount).toBe(1);
+    expect(session.waitingQueue).toHaveLength(0);
+
+    session.assignInitialCourts();
+
+    expect(playersOf(session.courts[0].match)).toContain(guest?.id);
+  });
+
+  it("adds a guest to the waiting flow after matches are already planned", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+
+    session.setCourtCount(1);
+    session.setAttendees(makeAttendees(7, "남"));
+    session.assignInitialCourts();
+
+    expect(session.upcomingMatches).toHaveLength(0);
+    expect(session.waitingQueue).toHaveLength(3);
+
+    const guest = session.addGuestAttendee({
+      name: "게스트B",
+      gender: "남",
+      skillScore: 70,
+    });
+
+    expect(guest?.isGuest).toBe(true);
+    expect(session.upcomingMatches).toHaveLength(1);
+    expect(session.waitingQueue).toHaveLength(0);
+    expect(playersOf(session.upcomingMatches[0])).toContain(guest?.id);
+  });
+
   it("assigns the first upcoming match to the court that finishes first", () => {
     const session = useSessionStore();
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
@@ -362,10 +410,16 @@ describe("session store upcoming matches", () => {
     session.assignInitialCourts();
     session.startCourt(1);
     session.finishCourt(1);
+    session.addGuestAttendee({
+      name: "게스트C",
+      gender: "여",
+      skillScore: 80,
+    });
 
     expect(session.hasAssignedCourt).toBe(true);
     expect(session.completedGameCount).toBe(1);
     expect(session.upcomingMatches.length).toBeGreaterThan(0);
+    expect(session.guestCount).toBe(1);
 
     fetchTodayAttendeesMock.mockResolvedValue({
       attendees: makeAttendees(4),
@@ -383,6 +437,7 @@ describe("session store upcoming matches", () => {
     expect(session.completedGameCount).toBe(0);
     expect(session.upcomingMatches).toHaveLength(0);
     expect(session.waitingQueue).toHaveLength(0);
+    expect(session.guestCount).toBe(0);
   });
 });
 

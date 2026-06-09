@@ -6,6 +6,7 @@ import { useRouter } from "vue-router";
 import AppHeader from "@/components/AppHeader.vue";
 import CourtBoard from "@/components/CourtBoard.vue";
 import FrequencyPreferenceControl from "@/components/FrequencyPreferenceControl.vue";
+import GuestAddForm from "@/components/GuestAddForm.vue";
 import MatchEditorSheet from "@/components/MatchEditorSheet.vue";
 import PlayCountBadge from "@/components/PlayCountBadge.vue";
 import { PLAY_FREQUENCY_LABELS, effectiveGamesPlayed, type EditableMatchTarget } from "@/shared/domain";
@@ -86,7 +87,7 @@ function formatFetchedAt(value: string | null): string {
       <span class="mode-badge">운영자</span>
       <button class="toolbar-command" :disabled="!canReloadAttendees" type="button" @click="reloadTodayAttendees">
         <RefreshCw :class="{ spinning: session.attendeesLoading }" :size="17" />
-        <span>{{ session.attendeesLoading ? "불러오는 중" : "출석기록" }}</span>
+        <span>{{ session.attendeesLoading ? "불러오는 중" : "초기화" }}</span>
       </button>
       <button
         class="toolbar-command"
@@ -147,6 +148,8 @@ function formatFetchedAt(value: string | null): string {
       </button>
     </div>
 
+    <GuestAddForm />
+
     <CourtBoard @edit-court="openCourtEditor" />
 
     <section class="waiting-panel" aria-label="다음 경기">
@@ -187,7 +190,10 @@ function formatFetchedAt(value: string | null): string {
         <article v-for="(player, index) in session.waitingQueue" :key="player.id" class="queue-row">
           <div class="queue-order">{{ index + 1 }}</div>
           <div class="queue-body">
-            <strong>{{ player.name }}</strong>
+            <strong>
+              {{ player.name }}
+              <small v-if="player.isGuest" class="inline-chip">게스트</small>
+            </strong>
             <span>
               <PlayCountBadge :count="player.playCount" />
               {{ PLAY_FREQUENCY_LABELS[player.playFrequencyPreference] }}
@@ -215,7 +221,10 @@ function formatFetchedAt(value: string | null): string {
       <div v-else class="member-list">
         <article v-for="attendee in session.attendees" :key="attendee.id" class="attendee-row">
           <div class="attendee-main">
-            <strong>{{ attendee.name }}</strong>
+            <strong>
+              {{ attendee.name }}
+              <small v-if="attendee.isGuest" class="inline-chip">게스트</small>
+            </strong>
             <span>{{ attendee.gender }} · {{ attendee.level || "급수 없음" }} · {{ attendee.skillScore ?? "-" }}점</span>
           </div>
           <div class="attendee-count">

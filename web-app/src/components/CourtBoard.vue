@@ -40,6 +40,7 @@ function statusLabel(status: CourtState["status"]): string {
           <div class="team-line">
             <span v-for="player in court.match.teamA.players" :key="player.id">
               {{ player.name }}
+              <small v-if="player.isGuest" class="inline-chip">게스트</small>
               <PlayCountBadge :count="player.playCount" />
             </span>
           </div>
@@ -47,6 +48,7 @@ function statusLabel(status: CourtState["status"]): string {
           <div class="team-line">
             <span v-for="player in court.match.teamB.players" :key="player.id">
               {{ player.name }}
+              <small v-if="player.isGuest" class="inline-chip">게스트</small>
               <PlayCountBadge :count="player.playCount" />
             </span>
           </div>

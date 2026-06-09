@@ -7,6 +7,7 @@ import type {
   Attendee,
   CourtState,
   EditableMatchTarget,
+  GuestAttendeeInput,
   Match,
   MatchSlot,
   PlayFrequencyPreference,
@@ -105,6 +106,7 @@ export const useSessionStore = defineStore("session", {
       state.waitingQueue.length +
       state.upcomingMatches.reduce((count, match) => count + matchPlayers(match).length, 0),
     completedGameCount: (state) => state.completedMatches.length,
+    guestCount: (state) => state.attendees.filter((attendee) => attendee.isGuest).length,
     canUndo: (state) => state.undoStack.length > 0,
     lastUndoLabel: (state) => state.undoStack.at(-1)?.label ?? null,
     hasInProgressCourt: (state) => state.courts.some((court) => court.status === "inProgress"),
@@ -248,6 +250,26 @@ export const useSessionStore = defineStore("session", {
       this.attendees = attendees;
       this.updatedAt = new Date().toISOString();
       void this.persistRemoteSession();
+    },
+    addGuestAttendee(input: GuestAttendeeInput) {
+      const guest = createGuestAttendee(input);
+      if (!guest) return null;
+
+      this.pushUndo("게스트 추가 전");
+      this.id = CURRENT_SESSION_ID;
+      this.matchingPolicyVersion = MATCHING_POLICY_VERSION;
+      this.attendees.push(guest);
+
+      if (hasBuiltMatchPlan(this)) {
+        this.waitingQueue.push(guest);
+        if (this.upcomingMatches.length === 0 && this.waitingQueue.length >= 4) {
+          this.rebuildUpcomingMatchesFromGroups([this.waitingQueue]);
+        }
+      }
+
+      this.updatedAt = guest.selectedAt;
+      void this.persistRemoteSession();
+      return guest;
     },
     setFrequencyPreference(attendeeId: string, preference: PlayFrequencyPreference) {
       const attendee = this.attendees.find((candidate) => candidate.id === attendeeId);
@@ -474,6 +496,40 @@ function hasMeaningfulSession(state: SessionState): boolean {
     state.waitingQueue.length > 0 ||
     state.completedMatches.length > 0
   );
+}
+
+function hasBuiltMatchPlan(state: SessionState): boolean {
+  return (
+    state.courts.some((court) => court.match) ||
+    state.upcomingMatches.length > 0 ||
+    state.waitingQueue.length > 0 ||
+    state.completedMatches.length > 0
+  );
+}
+
+function createGuestAttendee(input: GuestAttendeeInput): Attendee | null {
+  const name = input.name.trim();
+  if (!name || !Number.isFinite(input.skillScore)) return null;
+
+  const selectedAt = new Date().toISOString();
+  const skillScore = Math.max(0, Math.min(100, Math.round(input.skillScore)));
+
+  return {
+    id: `guest-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    no: null,
+    name,
+    joinedAt: "",
+    level: "게스트",
+    skillScore,
+    gender: input.gender,
+    isStaff: false,
+    isExempt: false,
+    isGuest: true,
+    selectedAt,
+    playCount: 0,
+    waitCount: 0,
+    playFrequencyPreference: "normal",
+  };
 }
 
 function editableMatchForTarget(state: SessionState, target: EditableMatchTarget): Match | QueuedMatch | null {
