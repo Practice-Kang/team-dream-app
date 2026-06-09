@@ -1,7 +1,7 @@
 import { verifyAdminRequest, type AuthEnv } from "../auth/_shared";
 import { todayDateKey } from "../../../src/shared/dateKey";
 import type { SessionState } from "../../../src/shared/domain";
-import { CURRENT_SESSION_ID } from "../../../src/shared/sessionSource";
+import { CURRENT_SESSION_ID, MATCHING_POLICY_VERSION } from "../../../src/shared/sessionSource";
 
 const SESSION_TTL_SECONDS = 6 * 60 * 60;
 
@@ -53,6 +53,15 @@ export const onRequestPut: PagesFunction<SessionEnv> = async ({ env, request }) 
     return Response.json({ message: "Session state shape is invalid." }, { status: 400 });
   }
 
+  if (body.state.matchingPolicyVersion !== MATCHING_POLICY_VERSION) {
+    return Response.json(
+      {
+        message: "새 매칭 정책이 배포되었습니다. 운영자 화면을 새로고침한 뒤 다시 시도해주세요.",
+      },
+      { status: 412 },
+    );
+  }
+
   const existing = await readCurrentSessionRow(env.DB);
   const existingActiveTodaySession = Boolean(existing && !isExpired(existing) && isTodaySession(existing));
   const requestVersion = typeof body.version === "number" ? body.version : null;
@@ -67,6 +76,7 @@ export const onRequestPut: PagesFunction<SessionEnv> = async ({ env, request }) 
   const state: SessionState = {
     ...body.state,
     id: CURRENT_SESSION_ID,
+    matchingPolicyVersion: MATCHING_POLICY_VERSION,
     attendeesLoading: false,
     attendeesError: null,
     updatedAt,

@@ -12,7 +12,7 @@ import type {
   QueueStatus,
   SessionState,
 } from "@/shared/domain";
-import { CURRENT_SESSION_ID, type RemoteSessionSnapshot } from "@/shared/sessionSource";
+import { CURRENT_SESSION_ID, MATCHING_POLICY_VERSION, type RemoteSessionSnapshot } from "@/shared/sessionSource";
 import { loadSessionStateFromStorage, sanitizeSessionState } from "@/stores/sessionPersistence";
 
 type SyncStatus = "idle" | "loading" | "saving" | "error";
@@ -58,6 +58,7 @@ function interleavePlayerGroups(groups: Attendee[][]): Attendee[] {
 function defaultSessionState(): SessionState {
   return {
     id: null,
+    matchingPolicyVersion: MATCHING_POLICY_VERSION,
     title: "오늘 경기",
     courtCount: 3,
     attendees: [],
@@ -184,6 +185,7 @@ export const useSessionStore = defineStore("session", {
       try {
         const response = await fetchTodayAttendees();
         this.id = CURRENT_SESSION_ID;
+        this.matchingPolicyVersion = MATCHING_POLICY_VERSION;
         this.attendees = response.attendees;
         this.attendeesFetchedAt = response.fetchedAt;
         this.attendanceDate = response.attendanceDate;
@@ -265,6 +267,7 @@ export const useSessionStore = defineStore("session", {
       const assignedAt = new Date().toISOString();
 
       this.id = CURRENT_SESSION_ID;
+      this.matchingPolicyVersion = MATCHING_POLICY_VERSION;
       this.courts = emptyCourts(this.courtCount).map((court) => {
         const match = round.matches.find((candidate) => candidate.courtNumber === court.courtNumber) ?? null;
 

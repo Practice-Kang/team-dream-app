@@ -80,6 +80,7 @@ export interface PlayerRoundStats {
 
 export interface SessionState {
   id: string | null;
+  matchingPolicyVersion: number;
   title: string;
   courtCount: number;
   attendees: Attendee[];

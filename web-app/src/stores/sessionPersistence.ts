@@ -62,6 +62,7 @@ export function sanitizeSessionState(state: SessionState): SessionState {
 
   return {
     id: state.id,
+    matchingPolicyVersion: typeof state.matchingPolicyVersion === "number" ? state.matchingPolicyVersion : 0,
     title: state.title,
     courtCount: state.courtCount,
     attendees: Array.isArray(state.attendees) ? state.attendees : [],

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Attendee, CourtState, QueuedMatch, SessionState } from "@/shared/domain";
+import { MATCHING_POLICY_VERSION } from "@/shared/sessionSource";
 
 import { createPersistedSessionPayload, restoreSessionState } from "./sessionPersistence";
 
@@ -114,6 +115,7 @@ function makeSessionState(): SessionState {
 
   return {
     id: null,
+    matchingPolicyVersion: MATCHING_POLICY_VERSION,
     title: "오늘 경기",
     courtCount: 1,
     attendees,
