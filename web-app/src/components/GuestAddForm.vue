@@ -51,8 +51,8 @@ function submitGuest() {
 
     <div class="guest-form">
       <label class="guest-field guest-name-field">
-        <span>이름</span>
-        <input v-model="name" autocomplete="off" type="text" />
+        <span class="sr-only">이름</span>
+        <input v-model="name" autocomplete="off" placeholder="이름" type="text" />
       </label>
 
       <div class="guest-gender-control" aria-label="성별">
@@ -64,19 +64,20 @@ function submitGuest() {
         </button>
       </div>
 
-      <label class="guest-field">
-        <span>점수</span>
-        <input v-model="scoreText" inputmode="numeric" max="100" min="0" type="number" />
+      <label class="guest-field guest-score-add-field">
+        <span class="sr-only">점수</span>
+        <input v-model="scoreText" inputmode="numeric" max="100" min="0" placeholder="점수" type="number" />
       </label>
 
       <button
         class="command guest-add-command"
         :disabled="!canSubmit || session.syncStatus === 'saving'"
+        title="게스트 추가"
         type="button"
         @click="submitGuest"
       >
         <UserPlus :size="18" />
-        <span>추가</span>
+        <span class="sr-only">추가</span>
       </button>
     </div>
   </section>
