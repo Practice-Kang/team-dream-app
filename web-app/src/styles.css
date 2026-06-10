@@ -101,6 +101,8 @@ button {
   border-radius: 8px;
   font-size: 13px;
   font-weight: 900;
+  white-space: nowrap;
+  word-break: keep-all;
 }
 
 .court-control {
@@ -117,6 +119,8 @@ button {
 .court-control span {
   font-size: 12px;
   font-weight: 800;
+  white-space: nowrap;
+  word-break: keep-all;
 }
 
 .court-control input {
@@ -143,6 +147,17 @@ button {
   border-radius: 8px;
   font-size: 14px;
   font-weight: 900;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+.toolbar-command svg {
+  flex: 0 0 auto;
+}
+
+.toolbar-command span {
+  white-space: nowrap;
+  word-break: keep-all;
 }
 
 .toolbar-command:disabled {
@@ -1192,19 +1207,49 @@ button {
   text-decoration: none;
 }
 
-@media (max-width: 380px) {
+@media (max-width: 480px) {
   .toolbar {
+    display: grid;
+    grid-template-columns: minmax(84px, 0.8fr) minmax(0, 1fr) 52px;
     align-items: stretch;
   }
 
-  .toolbar-command {
-    flex: 1;
+  .mode-badge {
+    min-height: 52px;
+    justify-content: center;
+    margin-right: 0;
+    padding: 0 8px;
+  }
+
+  .court-control {
+    width: auto;
+  }
+
+  .toolbar > .toolbar-command {
+    width: 100%;
+    min-width: 0;
+    padding: 0 10px;
+  }
+
+  .toolbar > .toolbar-command:nth-of-type(1) {
+    grid-column: 1 / 2;
+    grid-row: 2;
+  }
+
+  .toolbar > .toolbar-command:nth-of-type(2) {
+    grid-column: 2 / 4;
+    grid-row: 2;
   }
 
   .toolbar-command.icon-only {
-    flex: 0 0 52px;
+    grid-column: 3 / 4;
+    grid-row: 1;
+    width: 52px;
+    padding: 0;
   }
+}
 
+@media (max-width: 380px) {
   .status-strip {
     grid-template-columns: repeat(2, 1fr);
   }
