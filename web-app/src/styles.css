@@ -355,6 +355,36 @@ button {
   min-height: 42px;
 }
 
+.partner-settings-entry {
+  margin-bottom: 14px;
+}
+
+.partner-settings-command {
+  width: 100%;
+  justify-content: space-between;
+  padding: 0 14px;
+}
+
+.partner-settings-command span {
+  min-width: 0;
+  margin-right: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.partner-settings-command small {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 3px 7px;
+  color: #174631;
+  background: #e8f3eb;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .command,
 .icon-command {
   display: inline-flex;
@@ -391,7 +421,6 @@ button {
 .round-summary,
 .member-panel,
 .guest-panel,
-.companion-panel,
 .waiting-panel,
 .court-board {
   margin-bottom: 14px;
@@ -634,6 +663,19 @@ button {
   box-shadow: 0 -18px 44px rgba(24, 32, 38, 0.24);
 }
 
+.partner-settings-sheet {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(100%, 560px);
+  max-height: min(78vh, 620px);
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #d7ddd4;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  box-shadow: 0 -18px 44px rgba(24, 32, 38, 0.24);
+}
+
 .editor-header {
   display: flex;
   align-items: center;
@@ -667,6 +709,15 @@ button {
 .editor-body {
   display: grid;
   gap: 12px;
+  min-height: 0;
+  padding: 14px 14px max(18px, env(safe-area-inset-bottom));
+  overflow-y: auto;
+}
+
+.partner-settings-body {
+  display: grid;
+  align-content: start;
+  gap: 10px;
   min-height: 0;
   padding: 14px 14px max(18px, env(safe-area-inset-bottom));
   overflow-y: auto;
@@ -841,11 +892,6 @@ button {
   background: #fff1d8;
 }
 
-.inline-chip.companion {
-  color: #17415c;
-  background: #e5f1f8;
-}
-
 .attendee-main .inline-chip,
 .candidate-main .inline-chip,
 .editor-slot .inline-chip,
@@ -857,10 +903,6 @@ button {
 
 .attendee-main .inline-chip.paused {
   color: #7d4e1c;
-}
-
-.attendee-main .inline-chip.companion {
-  color: #17415c;
 }
 
 .frequency-control {

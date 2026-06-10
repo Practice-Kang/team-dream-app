@@ -340,7 +340,7 @@ export const useSessionStore = defineStore("session", {
       const pair = createCompanionPair(this, playerAId, playerBId);
       if (!pair) return false;
 
-      this.pushUndo("우선동반 추가 전");
+      this.pushUndo("파트너설정 추가 전");
       this.companionPairs.push(pair);
       this.rebuildFutureMatchesForCompanionPairs();
       this.updatedAt = pair.createdAt;
@@ -351,7 +351,7 @@ export const useSessionStore = defineStore("session", {
       const pairIndex = this.companionPairs.findIndex((pair) => pair.id === pairId);
       if (pairIndex < 0) return false;
 
-      this.pushUndo("우선동반 삭제 전");
+      this.pushUndo("파트너설정 삭제 전");
       this.companionPairs.splice(pairIndex, 1);
       this.rebuildFutureMatchesForCompanionPairs();
       this.updatedAt = new Date().toISOString();
