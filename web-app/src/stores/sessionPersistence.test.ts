@@ -62,6 +62,24 @@ describe("sessionPersistence", () => {
     ]);
   });
 
+  it("restores valid companion pairs for current attendees", () => {
+    const state = makeSessionState();
+    state.companionPairs = [
+      {
+        id: "pair-1",
+        playerAId: state.attendees[0].id,
+        playerBId: state.attendees[4].id,
+        createdAt: "2026-06-08T10:00:00.000Z",
+      },
+    ];
+
+    const payload = JSON.parse(JSON.stringify(createPersistedSessionPayload(state, "2026-06-08T10:00:00.000Z")));
+
+    const restored = restoreSessionState(payload, Date.parse("2026-06-08T11:00:00.000Z"));
+
+    expect(restored?.companionPairs).toEqual(state.companionPairs);
+  });
+
   it("ignores stale saved sessions", () => {
     const state = makeSessionState();
     const payload = createPersistedSessionPayload(state, "2026-06-08T10:00:00.000Z");
@@ -125,6 +143,7 @@ function makeSessionState(): SessionState {
     attendanceDate: "2026-06-08",
     sourceMembersCount: 9,
     unmatchedAttendanceNames: [],
+    companionPairs: [],
     courts: [court],
     upcomingMatches: [upcomingMatch],
     waitingQueue: [attendees[8]],

@@ -1,4 +1,12 @@
-import type { Attendee, CourtState, QueuedMatch, SessionSnapshot, SessionState, SessionUndoEntry } from "@/shared/domain";
+import type {
+  Attendee,
+  CompanionPair,
+  CourtState,
+  QueuedMatch,
+  SessionSnapshot,
+  SessionState,
+  SessionUndoEntry,
+} from "@/shared/domain";
 import { todayDateKey } from "@/shared/dateKey";
 
 const SESSION_STORAGE_KEY = "team-dream.session.v1";
@@ -72,6 +80,7 @@ export function sanitizeSessionState(state: SessionState): SessionState {
     attendeesFetchedAt: state.attendeesFetchedAt,
     attendanceDate: state.attendanceDate,
     sourceMembersCount: state.sourceMembersCount,
+    companionPairs: normalizeCompanionPairs(state.companionPairs, state.attendees),
     courts: normalizeCourts(state.courts, state.courtCount),
     upcomingMatches,
     waitingQueue,
@@ -144,6 +153,32 @@ function normalizeUndoStack(value: SessionUndoEntry[] | undefined): SessionUndoE
       createdAt: entry.createdAt,
       state: normalizeUndoSnapshot(entry.state),
     }));
+}
+
+function normalizeCompanionPairs(value: CompanionPair[] | undefined, attendees: Attendee[] | undefined): CompanionPair[] {
+  if (!Array.isArray(value)) return [];
+
+  const attendeeIds = new Set((Array.isArray(attendees) ? attendees : []).map((attendee) => attendee.id));
+  const usedPlayerIds = new Set<string>();
+
+  return value.filter((pair) => {
+    if (
+      typeof pair?.id !== "string" ||
+      typeof pair.playerAId !== "string" ||
+      typeof pair.playerBId !== "string" ||
+      typeof pair.createdAt !== "string"
+    ) {
+      return false;
+    }
+
+    if (pair.playerAId === pair.playerBId) return false;
+    if (!attendeeIds.has(pair.playerAId) || !attendeeIds.has(pair.playerBId)) return false;
+    if (usedPlayerIds.has(pair.playerAId) || usedPlayerIds.has(pair.playerBId)) return false;
+
+    usedPlayerIds.add(pair.playerAId);
+    usedPlayerIds.add(pair.playerBId);
+    return true;
+  });
 }
 
 function normalizeUndoSnapshot(state: SessionSnapshot): SessionSnapshot {

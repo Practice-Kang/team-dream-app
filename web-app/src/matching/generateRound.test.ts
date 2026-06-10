@@ -196,7 +196,16 @@ describe("generateRound", () => {
   it("breaks same-gender groups when an interleaved waiting queue is preserved", () => {
     const oldGroupA = [3, 5, 7, 9].map((no) => makeAttendee(no, "남", 50));
     const oldGroupB = [10, 12, 14, 16].map((no) => makeAttendee(no, "남", 50));
-    const attendees = [oldGroupA[0], oldGroupB[0], oldGroupA[1], oldGroupB[1], oldGroupA[2], oldGroupB[2], oldGroupA[3], oldGroupB[3]];
+    const attendees = [
+      oldGroupA[0],
+      oldGroupB[0],
+      oldGroupA[1],
+      oldGroupB[1],
+      oldGroupA[2],
+      oldGroupB[2],
+      oldGroupA[3],
+      oldGroupB[3],
+    ];
 
     const round = generateRound({
       attendees,
@@ -208,6 +217,50 @@ describe("generateRound", () => {
 
     expect(groupKeys).not.toContain(oldGroupA.map((player) => player.id).sort().join("|"));
     expect(groupKeys).not.toContain(oldGroupB.map((player) => player.id).sort().join("|"));
+  });
+
+  it("keeps a companion pair in the same match when possible", () => {
+    const attendees = makeGenderedAttendees(8, "남", 1);
+
+    const round = generateRound({
+      attendees,
+      courtCount: 2,
+      preserveOrder: true,
+      companionPairs: [
+        {
+          id: "pair-1",
+          playerAId: attendees[0].id,
+          playerBId: attendees[2].id,
+          createdAt: "2026-06-10T00:00:00.000Z",
+        },
+      ],
+    });
+    const hasCompanionMatch = round.matches.some((match) => {
+      const playerIds = playersOf(match).map((player) => player.id);
+      return playerIds.includes(attendees[0].id) && playerIds.includes(attendees[2].id);
+    });
+
+    expect(hasCompanionMatch).toBe(true);
+  });
+
+  it("does not keep a companion pair by creating a forbidden 3-to-1 match", () => {
+    const attendees = [...makeGenderedAttendees(4, "남", 1), ...makeGenderedAttendees(4, "여", 5)];
+
+    const round = generateRound({
+      attendees,
+      courtCount: 2,
+      preserveOrder: true,
+      companionPairs: [
+        {
+          id: "pair-1",
+          playerAId: attendees[0].id,
+          playerBId: attendees[4].id,
+          createdAt: "2026-06-10T00:00:00.000Z",
+        },
+      ],
+    });
+
+    expect(round.matches.some((match) => isThreeToOneMatch(match))).toBe(false);
   });
 });
 

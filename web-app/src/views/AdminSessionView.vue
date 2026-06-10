@@ -1,6 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { CirclePause, Copy, Database, LogOut, Pencil, Play, RefreshCw, RotateCcw, Undo2 } from "@lucide/vue";
+import {
+  CirclePause,
+  Copy,
+  Database,
+  LogOut,
+  Pencil,
+  Play,
+  RefreshCw,
+  RotateCcw,
+  Undo2,
+  Users,
+  X,
+} from "@lucide/vue";
 import { useRouter } from "vue-router";
 
 import AppHeader from "@/components/AppHeader.vue";
@@ -17,6 +29,8 @@ const session = useSessionStore();
 const auth = useAuthStore();
 const router = useRouter();
 const editTarget = ref<EditableMatchTarget | null>(null);
+const companionPlayerAId = ref("");
+const companionPlayerBId = ref("");
 
 const canReloadAttendees = computed(() => !session.attendeesLoading);
 const hasSessionStateToReset = computed(
@@ -25,6 +39,28 @@ const hasSessionStateToReset = computed(
     session.completedGameCount > 0 ||
     session.upcomingMatches.length > 0 ||
     session.waitingQueue.length > 0,
+);
+const pairedPlayerIds = computed(
+  () => new Set(session.companionPairs.flatMap((pair) => [pair.playerAId, pair.playerBId])),
+);
+const companionPlayerAOptions = computed(() =>
+  session.attendees.filter(
+    (attendee) =>
+      !attendee.isDisabled && (!pairedPlayerIds.value.has(attendee.id) || attendee.id === companionPlayerAId.value),
+  ),
+);
+const companionPlayerBOptions = computed(() =>
+  session.attendees.filter(
+    (attendee) =>
+      !attendee.isDisabled &&
+      attendee.id !== companionPlayerAId.value &&
+      (!pairedPlayerIds.value.has(attendee.id) || attendee.id === companionPlayerBId.value),
+  ),
+);
+const canAddCompanionPair = computed(
+  () =>
+    Boolean(companionPlayerAId.value && companionPlayerBId.value) &&
+    companionPlayerAId.value !== companionPlayerBId.value,
 );
 
 onMounted(async () => {
@@ -71,6 +107,32 @@ function playerNames(players: { name: string }[]): string {
 
 function updateGuestSkillScore(attendeeId: string, rawValue: string) {
   session.setGuestSkillScore(attendeeId, Number(rawValue));
+}
+
+function addCompanionPair() {
+  if (!canAddCompanionPair.value) return;
+
+  const added = session.addCompanionPair(companionPlayerAId.value, companionPlayerBId.value);
+  if (!added) {
+    window.alert("이미 우선동반에 포함된 참석자가 있어 등록할 수 없습니다.");
+    return;
+  }
+
+  companionPlayerAId.value = "";
+  companionPlayerBId.value = "";
+}
+
+function companionPlayerName(playerId: string): string {
+  return session.attendees.find((attendee) => attendee.id === playerId)?.name ?? "알 수 없음";
+}
+
+function companionNameFor(attendeeId: string): string | null {
+  const pair = session.companionPairs.find(
+    (candidate) => candidate.playerAId === attendeeId || candidate.playerBId === attendeeId,
+  );
+  if (!pair) return null;
+
+  return companionPlayerName(pair.playerAId === attendeeId ? pair.playerBId : pair.playerAId);
 }
 
 function isInProgressAttendee(attendeeId: string): boolean {
@@ -172,6 +234,59 @@ function formatFetchedAt(value: string | null): string {
 
     <GuestAddForm />
 
+    <section class="companion-panel" aria-label="우선동반">
+      <div class="section-title">
+        <span>우선동반</span>
+        <strong>{{ session.companionPairCount }}쌍</strong>
+      </div>
+
+      <div class="companion-form">
+        <label class="companion-select">
+          <span>A</span>
+          <select v-model="companionPlayerAId">
+            <option value="">선택</option>
+            <option v-for="attendee in companionPlayerAOptions" :key="attendee.id" :value="attendee.id">
+              {{ attendee.name }}
+            </option>
+          </select>
+        </label>
+        <label class="companion-select">
+          <span>B</span>
+          <select v-model="companionPlayerBId">
+            <option value="">선택</option>
+            <option v-for="attendee in companionPlayerBOptions" :key="attendee.id" :value="attendee.id">
+              {{ attendee.name }}
+            </option>
+          </select>
+        </label>
+        <button
+          class="command companion-add-command"
+          :disabled="!canAddCompanionPair"
+          type="button"
+          @click="addCompanionPair"
+        >
+          <Users :size="18" />
+          <span>추가</span>
+        </button>
+      </div>
+
+      <div v-if="session.companionPairs.length" class="companion-list">
+        <article v-for="pair in session.companionPairs" :key="pair.id" class="companion-row">
+          <strong>{{ companionPlayerName(pair.playerAId) }} / {{ companionPlayerName(pair.playerBId) }}</strong>
+          <button
+            class="icon-command companion-remove-command"
+            title="우선동반 삭제"
+            type="button"
+            @click="session.removeCompanionPair(pair.id)"
+          >
+            <X :size="18" />
+          </button>
+        </article>
+      </div>
+
+      <div v-else class="empty-state">등록된 우선동반이 없습니다</div>
+    </section>
+
     <CourtBoard @edit-court="openCourtEditor" />
 
     <section class="waiting-panel" aria-label="다음 경기">
@@ -255,6 +370,9 @@ function formatFetchedAt(value: string | null): string {
               {{ attendee.name }}
               <small v-if="attendee.isGuest" class="inline-chip">게스트</small>
               <small v-if="attendee.isDisabled" class="inline-chip paused">쉬는중</small>
+              <small v-if="companionNameFor(attendee.id)" class="inline-chip companion">
+                동반 {{ companionNameFor(attendee.id) }}
+              </small>
             </strong>
             <template v-if="attendee.isGuest">
               <span>{{ attendee.gender }} · 게스트</span>

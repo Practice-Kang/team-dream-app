@@ -289,6 +289,72 @@ button {
   box-shadow: 0 0 0 3px #ddefe3;
 }
 
+.companion-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.companion-select {
+  display: grid;
+  min-height: 52px;
+  gap: 2px;
+  padding: 6px 10px;
+  color: #4c5852;
+  background: #ffffff;
+  border: 1px solid #d7ddd4;
+  border-radius: 8px;
+}
+
+.companion-select span {
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.companion-select select {
+  width: 100%;
+  min-width: 0;
+  color: #182026;
+  background: transparent;
+  border: 0;
+  font-size: 16px;
+  font-weight: 900;
+  outline: none;
+}
+
+.companion-add-command {
+  min-width: 88px;
+}
+
+.companion-list {
+  display: grid;
+  gap: 8px;
+}
+
+.companion-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  min-height: 54px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  background: #ffffff;
+  border: 1px solid #d7ddd4;
+  border-radius: 8px;
+}
+
+.companion-row strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.companion-remove-command {
+  width: 42px;
+  min-height: 42px;
+}
+
 .command,
 .icon-command {
   display: inline-flex;
@@ -325,6 +391,7 @@ button {
 .round-summary,
 .member-panel,
 .guest-panel,
+.companion-panel,
 .waiting-panel,
 .court-board {
   margin-bottom: 14px;
@@ -774,6 +841,11 @@ button {
   background: #fff1d8;
 }
 
+.inline-chip.companion {
+  color: #17415c;
+  background: #e5f1f8;
+}
+
 .attendee-main .inline-chip,
 .candidate-main .inline-chip,
 .editor-slot .inline-chip,
@@ -781,6 +853,14 @@ button {
 .team-line .inline-chip {
   color: #174631;
   font-size: 11px;
+}
+
+.attendee-main .inline-chip.paused {
+  color: #7d4e1c;
+}
+
+.attendee-main .inline-chip.companion {
+  color: #17415c;
 }
 
 .frequency-control {
@@ -1102,6 +1182,14 @@ button {
 
   .guest-form {
     grid-template-columns: 1fr;
+  }
+
+  .companion-form {
+    grid-template-columns: 1fr;
+  }
+
+  .companion-add-command {
+    width: 100%;
   }
 
   .match-row.editable,

@@ -5,6 +5,7 @@ import { fetchTodayAttendees } from "@/services/members";
 import { fetchCurrentSession, saveCurrentSession, SessionConflictError } from "@/services/sessions";
 import type {
   Attendee,
+  CompanionPair,
   CourtState,
   EditableMatchTarget,
   GuestAttendeeInput,
@@ -71,6 +72,7 @@ function defaultSessionState(): SessionState {
     attendanceDate: null,
     sourceMembersCount: 0,
     unmatchedAttendanceNames: [],
+    companionPairs: [],
     courts: emptyCourts(3),
     upcomingMatches: [],
     waitingQueue: [],
@@ -109,6 +111,7 @@ export const useSessionStore = defineStore("session", {
       state.upcomingMatches.reduce((count, match) => count + matchPlayers(match).length, 0),
     completedGameCount: (state) => state.completedMatches.length,
     guestCount: (state) => state.attendees.filter((attendee) => attendee.isGuest).length,
+    companionPairCount: (state) => state.companionPairs.length,
     canUndo: (state) => state.undoStack.length > 0,
     lastUndoLabel: (state) => state.undoStack.at(-1)?.label ?? null,
     hasInProgressCourt: (state) => state.courts.some((court) => court.status === "inProgress"),
@@ -206,6 +209,7 @@ export const useSessionStore = defineStore("session", {
         this.attendanceDate = response.attendanceDate;
         this.sourceMembersCount = response.membersCount;
         this.unmatchedAttendanceNames = response.unmatchedNames;
+        this.companionPairs = [];
         this.courts = emptyCourts(this.courtCount);
         this.upcomingMatches = [];
         this.waitingQueue = [];
@@ -250,6 +254,7 @@ export const useSessionStore = defineStore("session", {
     setAttendees(attendees: Attendee[]) {
       this.pushUndo("참석자 변경 전");
       this.attendees = attendees;
+      this.companionPairs = validCompanionPairsForAttendees(this.companionPairs, attendees);
       this.updatedAt = new Date().toISOString();
       void this.persistRemoteSession();
     },
@@ -331,6 +336,28 @@ export const useSessionStore = defineStore("session", {
       void this.persistRemoteSession();
       return true;
     },
+    addCompanionPair(playerAId: string, playerBId: string) {
+      const pair = createCompanionPair(this, playerAId, playerBId);
+      if (!pair) return false;
+
+      this.pushUndo("우선동반 추가 전");
+      this.companionPairs.push(pair);
+      this.rebuildFutureMatchesForCompanionPairs();
+      this.updatedAt = pair.createdAt;
+      void this.persistRemoteSession();
+      return true;
+    },
+    removeCompanionPair(pairId: string) {
+      const pairIndex = this.companionPairs.findIndex((pair) => pair.id === pairId);
+      if (pairIndex < 0) return false;
+
+      this.pushUndo("우선동반 삭제 전");
+      this.companionPairs.splice(pairIndex, 1);
+      this.rebuildFutureMatchesForCompanionPairs();
+      this.updatedAt = new Date().toISOString();
+      void this.persistRemoteSession();
+      return true;
+    },
     setFrequencyPreference(attendeeId: string, preference: PlayFrequencyPreference) {
       const attendee = this.attendees.find((candidate) => candidate.id === attendeeId);
       if (!attendee || attendee.playFrequencyPreference === preference) return;
@@ -355,6 +382,7 @@ export const useSessionStore = defineStore("session", {
         attendees: this.attendees.filter((attendee) => isActiveAttendee(attendee)),
         courtCount: this.courtCount,
         seed: `${this.rounds.length + 1}`,
+        companionPairs: this.companionPairs,
       });
       const assignedAt = new Date().toISOString();
 
@@ -513,6 +541,7 @@ export const useSessionStore = defineStore("session", {
         courtCount: Math.min(1, gameCount),
         seed: `upcoming-${this.completedMatches.length}-${this.matchSequence}`,
         preserveOrder: options.preserveOrder !== false,
+        companionPairs: this.companionPairs,
       });
 
       const queuedMatches = round.matches.map((match): QueuedMatch => ({
@@ -537,6 +566,17 @@ export const useSessionStore = defineStore("session", {
       court.startedAt = null;
       this.matchSequence += 1;
       return true;
+    },
+    rebuildFutureMatchesForCompanionPairs() {
+      if (this.upcomingMatches.length === 0 && this.waitingQueue.length === 0) return;
+
+      this.rebuildUpcomingMatchesFromGroups(
+        [
+          ...this.upcomingMatches.map((match) => matchPlayers(match)),
+          this.waitingQueue,
+        ],
+        { preserveOrder: true },
+      );
     },
   },
 });
@@ -576,7 +616,8 @@ function hasMeaningfulSession(state: SessionState): boolean {
     state.courts.some((court) => court.match) ||
     state.upcomingMatches.length > 0 ||
     state.waitingQueue.length > 0 ||
-    state.completedMatches.length > 0
+    state.completedMatches.length > 0 ||
+    state.companionPairs.length > 0
   );
 }
 
@@ -587,6 +628,47 @@ function hasBuiltMatchPlan(state: SessionState): boolean {
     state.waitingQueue.length > 0 ||
     state.completedMatches.length > 0
   );
+}
+
+function createCompanionPair(state: SessionState, playerAId: string, playerBId: string): CompanionPair | null {
+  if (!playerAId || !playerBId || playerAId === playerBId) return null;
+
+  const playerA = state.attendees.find((attendee) => attendee.id === playerAId);
+  const playerB = state.attendees.find((attendee) => attendee.id === playerBId);
+  if (!playerA || !playerB) return null;
+  if (isPlayerInCompanionPairs(state.companionPairs, playerAId) || isPlayerInCompanionPairs(state.companionPairs, playerBId)) {
+    return null;
+  }
+
+  return {
+    id: normalizedCompanionPairId(playerAId, playerBId),
+    playerAId,
+    playerBId,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function validCompanionPairsForAttendees(pairs: CompanionPair[], attendees: Attendee[]): CompanionPair[] {
+  const attendeeIds = new Set(attendees.map((attendee) => attendee.id));
+  const usedPlayerIds = new Set<string>();
+
+  return pairs.filter((pair) => {
+    if (pair.playerAId === pair.playerBId) return false;
+    if (!attendeeIds.has(pair.playerAId) || !attendeeIds.has(pair.playerBId)) return false;
+    if (usedPlayerIds.has(pair.playerAId) || usedPlayerIds.has(pair.playerBId)) return false;
+
+    usedPlayerIds.add(pair.playerAId);
+    usedPlayerIds.add(pair.playerBId);
+    return true;
+  });
+}
+
+function isPlayerInCompanionPairs(pairs: CompanionPair[], playerId: string): boolean {
+  return pairs.some((pair) => pair.playerAId === playerId || pair.playerBId === playerId);
+}
+
+function normalizedCompanionPairId(playerAId: string, playerBId: string): string {
+  return `companion-${[playerAId, playerBId].sort().join("-")}`;
 }
 
 function createGuestAttendee(input: GuestAttendeeInput): Attendee | null {

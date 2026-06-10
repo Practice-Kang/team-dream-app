@@ -1,5 +1,5 @@
 import { effectiveGamesPlayed } from "@/shared/domain";
-import type { Attendee, Gender, Match, PlayerRoundStats, Round, Team } from "@/shared/domain";
+import type { Attendee, CompanionPair, Gender, Match, PlayerRoundStats, Round, Team } from "@/shared/domain";
 import { createsForbiddenThreeToOneMixedRemainder, isForbiddenThreeToOnePlayers } from "@/shared/matchPolicy";
 
 export interface GenerateRoundOptions {
@@ -8,6 +8,7 @@ export interface GenerateRoundOptions {
   stats?: Record<string, PlayerRoundStats>;
   seed?: string;
   preserveOrder?: boolean;
+  companionPairs?: CompanionPair[];
 }
 
 interface RankedAttendee {
@@ -23,29 +24,43 @@ interface GenderUsePlan {
   rankPenalty: number;
 }
 
+type RoundGroups = { groups: Attendee[][]; waiting: Attendee[] };
+
+type PlayerLocation =
+  | {
+      kind: "group";
+      groupIndex: number;
+    }
+  | {
+      kind: "waiting";
+      index: number;
+    };
+
 export function generateRound(options: GenerateRoundOptions): Round {
   const courtCount = Math.max(0, Math.floor(options.courtCount));
   const activeAttendees = options.attendees.filter((attendee) => !attendee.isDisabled);
+  const companionPairs = activeCompanionPairs(options.companionPairs ?? [], activeAttendees);
   const gamesPerRound = Math.min(courtCount, Math.floor(activeAttendees.length / 4));
 
-  const ordered = activeAttendees
+  const rankedAttendees = activeAttendees
     .map((attendee, index) => ({ attendee, index }))
     .sort((a, b) => {
-        const selectionScoreDiff = playerSelectionScore(b.attendee, options.stats) - playerSelectionScore(a.attendee, options.stats);
-        if (selectionScoreDiff !== 0) return selectionScoreDiff;
+      const selectionScoreDiff = playerSelectionScore(b.attendee, options.stats) - playerSelectionScore(a.attendee, options.stats);
+      if (selectionScoreDiff !== 0) return selectionScoreDiff;
 
-        if (options.preserveOrder) {
-          return a.index - b.index;
-        }
+      if (options.preserveOrder) {
+        return a.index - b.index;
+      }
 
-        const seededDiff = seededRank(a.attendee.id, options.seed) - seededRank(b.attendee.id, options.seed);
-        if (seededDiff !== 0) return seededDiff;
+      const seededDiff = seededRank(a.attendee.id, options.seed) - seededRank(b.attendee.id, options.seed);
+      if (seededDiff !== 0) return seededDiff;
 
-        return a.attendee.name.localeCompare(b.attendee.name, "ko");
-      })
+      return a.attendee.name.localeCompare(b.attendee.name, "ko");
+    })
     .map(({ attendee }) => attendee);
+  const ordered = groupCompanionsInOrder(rankedAttendees, companionPairs);
 
-  const { groups, waiting } = buildGenderAwareGroups(ordered, gamesPerRound);
+  const { groups, waiting } = repairCompanionGroups(buildGenderAwareGroups(ordered, gamesPerRound), companionPairs);
   const matches: Match[] = [];
 
   for (let index = 0; index < groups.length; index += 1) {
@@ -68,7 +83,218 @@ export function generateRound(options: GenerateRoundOptions): Round {
   };
 }
 
-function buildGenderAwareGroups(ordered: Attendee[], gamesPerRound: number): { groups: Attendee[][]; waiting: Attendee[] } {
+function activeCompanionPairs(pairs: CompanionPair[], attendees: Attendee[]): CompanionPair[] {
+  const attendeeIds = new Set(attendees.map((attendee) => attendee.id));
+  const usedPlayerIds = new Set<string>();
+
+  return pairs.filter((pair) => {
+    if (pair.playerAId === pair.playerBId) return false;
+    if (!attendeeIds.has(pair.playerAId) || !attendeeIds.has(pair.playerBId)) return false;
+    if (usedPlayerIds.has(pair.playerAId) || usedPlayerIds.has(pair.playerBId)) return false;
+
+    usedPlayerIds.add(pair.playerAId);
+    usedPlayerIds.add(pair.playerBId);
+    return true;
+  });
+}
+
+function groupCompanionsInOrder(ordered: Attendee[], pairs: CompanionPair[]): Attendee[] {
+  if (pairs.length === 0) return ordered;
+
+  const attendeesById = new Map(ordered.map((attendee) => [attendee.id, attendee]));
+  const pairByPlayerId = companionPairByPlayerId(pairs);
+  const seenIds = new Set<string>();
+  const companionAwareOrder: Attendee[] = [];
+
+  ordered.forEach((attendee) => {
+    if (seenIds.has(attendee.id)) return;
+
+    const pair = pairByPlayerId.get(attendee.id);
+    const partner = pair ? attendeesById.get(otherCompanionId(pair, attendee.id)) : null;
+
+    companionAwareOrder.push(attendee);
+    seenIds.add(attendee.id);
+
+    if (partner && !seenIds.has(partner.id)) {
+      companionAwareOrder.push(partner);
+      seenIds.add(partner.id);
+    }
+  });
+
+  return companionAwareOrder;
+}
+
+function repairCompanionGroups(roundGroups: RoundGroups, pairs: CompanionPair[]): RoundGroups {
+  if (pairs.length === 0) return roundGroups;
+
+  const groups = roundGroups.groups.map((group) => [...group]);
+  const waiting = [...roundGroups.waiting];
+  const pairByPlayerId = companionPairByPlayerId(pairs);
+
+  pairs.forEach((pair) => {
+    const playerALocation = findPlayerLocation(groups, waiting, pair.playerAId);
+    const playerBLocation = findPlayerLocation(groups, waiting, pair.playerBId);
+    if (!playerALocation || !playerBLocation) return;
+
+    if (
+      playerALocation.kind === "group" &&
+      playerBLocation.kind === "group" &&
+      playerALocation.groupIndex === playerBLocation.groupIndex
+    ) {
+      return;
+    }
+
+    if (playerALocation.kind === "group" && playerBLocation.kind === "waiting") {
+      tryMoveWaitingCompanionIntoGroup(
+        groups,
+        waiting,
+        playerALocation.groupIndex,
+        playerBLocation.index,
+        pair.playerAId,
+        pairByPlayerId,
+      );
+      return;
+    }
+
+    if (playerALocation.kind === "waiting" && playerBLocation.kind === "group") {
+      tryMoveWaitingCompanionIntoGroup(
+        groups,
+        waiting,
+        playerBLocation.groupIndex,
+        playerALocation.index,
+        pair.playerBId,
+        pairByPlayerId,
+      );
+      return;
+    }
+
+    if (playerALocation.kind === "group" && playerBLocation.kind === "group") {
+      trySwapCompanionIntoGroup(
+        groups,
+        playerALocation.groupIndex,
+        playerBLocation.groupIndex,
+        pair.playerAId,
+        pair.playerBId,
+        pairByPlayerId,
+      ) ||
+        trySwapCompanionIntoGroup(
+          groups,
+          playerBLocation.groupIndex,
+          playerALocation.groupIndex,
+          pair.playerBId,
+          pair.playerAId,
+          pairByPlayerId,
+        );
+    }
+  });
+
+  return { groups, waiting };
+}
+
+function tryMoveWaitingCompanionIntoGroup(
+  groups: Attendee[][],
+  waiting: Attendee[],
+  groupIndex: number,
+  waitingIndex: number,
+  fixedPlayerId: string,
+  pairByPlayerId: Map<string, CompanionPair>,
+): boolean {
+  const group = groups[groupIndex];
+  const waitingPlayer = waiting[waitingIndex];
+  if (!group || !waitingPlayer) return false;
+
+  for (let playerIndex = 0; playerIndex < group.length; playerIndex += 1) {
+    const candidate = group[playerIndex];
+    if (candidate.id === fixedPlayerId || !canMovePlayerFromGroup(candidate, group, pairByPlayerId)) continue;
+
+    const nextGroup = group.map((player, index) => (index === playerIndex ? waitingPlayer : player));
+    if (!isValidAutoMatchGroup(nextGroup)) continue;
+
+    groups[groupIndex] = nextGroup;
+    waiting[waitingIndex] = candidate;
+    return true;
+  }
+
+  return false;
+}
+
+function trySwapCompanionIntoGroup(
+  groups: Attendee[][],
+  targetGroupIndex: number,
+  sourceGroupIndex: number,
+  fixedPlayerId: string,
+  movingPlayerId: string,
+  pairByPlayerId: Map<string, CompanionPair>,
+): boolean {
+  const targetGroup = groups[targetGroupIndex];
+  const sourceGroup = groups[sourceGroupIndex];
+  const movingPlayerIndex = sourceGroup?.findIndex((player) => player.id === movingPlayerId) ?? -1;
+  if (!targetGroup || !sourceGroup || movingPlayerIndex < 0) return false;
+
+  const movingPlayer = sourceGroup[movingPlayerIndex];
+
+  for (let candidateIndex = 0; candidateIndex < targetGroup.length; candidateIndex += 1) {
+    const candidate = targetGroup[candidateIndex];
+    if (candidate.id === fixedPlayerId || !canMovePlayerFromGroup(candidate, targetGroup, pairByPlayerId)) continue;
+
+    const nextTargetGroup = targetGroup.map((player, index) => (index === candidateIndex ? movingPlayer : player));
+    const nextSourceGroup = sourceGroup.map((player, index) => (index === movingPlayerIndex ? candidate : player));
+    if (!isValidAutoMatchGroup(nextTargetGroup) || !isValidAutoMatchGroup(nextSourceGroup)) continue;
+
+    groups[targetGroupIndex] = nextTargetGroup;
+    groups[sourceGroupIndex] = nextSourceGroup;
+    return true;
+  }
+
+  return false;
+}
+
+function canMovePlayerFromGroup(
+  player: Attendee,
+  group: Attendee[],
+  pairByPlayerId: Map<string, CompanionPair>,
+): boolean {
+  const pair = pairByPlayerId.get(player.id);
+  if (!pair) return true;
+
+  return !group.some((candidate) => candidate.id === otherCompanionId(pair, player.id));
+}
+
+function findPlayerLocation(groups: Attendee[][], waiting: Attendee[], playerId: string): PlayerLocation | null {
+  for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
+    const playerIndex = groups[groupIndex].findIndex((player) => player.id === playerId);
+    if (playerIndex >= 0) {
+      return {
+        kind: "group",
+        groupIndex,
+      };
+    }
+  }
+
+  const waitingIndex = waiting.findIndex((player) => player.id === playerId);
+  return waitingIndex >= 0 ? { kind: "waiting", index: waitingIndex } : null;
+}
+
+function companionPairByPlayerId(pairs: CompanionPair[]): Map<string, CompanionPair> {
+  const pairByPlayerId = new Map<string, CompanionPair>();
+
+  pairs.forEach((pair) => {
+    pairByPlayerId.set(pair.playerAId, pair);
+    pairByPlayerId.set(pair.playerBId, pair);
+  });
+
+  return pairByPlayerId;
+}
+
+function otherCompanionId(pair: CompanionPair, playerId: string): string {
+  return pair.playerAId === playerId ? pair.playerBId : pair.playerAId;
+}
+
+function isValidAutoMatchGroup(group: Attendee[]): boolean {
+  return group.length === 4 && !isForbiddenThreeToOnePlayers(group);
+}
+
+function buildGenderAwareGroups(ordered: Attendee[], gamesPerRound: number): RoundGroups {
   if (gamesPerRound <= 0) {
     return { groups: [], waiting: ordered };
   }

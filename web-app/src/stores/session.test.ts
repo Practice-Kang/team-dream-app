@@ -244,6 +244,55 @@ describe("session store upcoming matches", () => {
     expect(session.waitingQueue.map((player) => player.id)).not.toContain(attendees[0].id);
   });
 
+  it("adds companion pairs while rejecting overlapping players", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+    const attendees = makeAttendees(6, "남");
+
+    session.setAttendees(attendees);
+
+    expect(session.addCompanionPair(attendees[0].id, attendees[1].id)).toBe(true);
+    expect(session.addCompanionPair(attendees[0].id, attendees[2].id)).toBe(false);
+    expect(session.addCompanionPair(attendees[2].id, attendees[3].id)).toBe(true);
+    expect(session.companionPairs).toHaveLength(2);
+  });
+
+  it("uses companion pairs when assigning the first courts", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+    const attendees = makeAttendees(8, "남");
+
+    session.setCourtCount(2);
+    session.setAttendees(attendees);
+    expect(session.addCompanionPair(attendees[0].id, attendees[2].id)).toBe(true);
+    session.assignInitialCourts();
+
+    expect(
+      session.courts.some((court) => {
+        const playerIds = playersOf(court.match);
+        return playerIds.includes(attendees[0].id) && playerIds.includes(attendees[2].id);
+      }),
+    ).toBe(true);
+  });
+
+  it("rebuilds future matches so a companion pair can enter together", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+
+    session.setCourtCount(2);
+    session.setAttendees(makeAttendees(16, "남"));
+    session.assignInitialCourts();
+
+    const upcomingPlayer = session.upcomingMatches[0].teamA.players[0];
+    const waitingPlayer = session.waitingQueue[0];
+
+    expect(playersOf(session.upcomingMatches[0])).not.toContain(waitingPlayer.id);
+    expect(session.addCompanionPair(upcomingPlayer.id, waitingPlayer.id)).toBe(true);
+
+    expect(playersOf(session.upcomingMatches[0])).toContain(upcomingPlayer.id);
+    expect(playersOf(session.upcomingMatches[0])).toContain(waitingPlayer.id);
+  });
+
   it("assigns the first upcoming match to the court that finishes first", () => {
     const session = useSessionStore();
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
@@ -579,11 +628,13 @@ describe("session store upcoming matches", () => {
       gender: "여",
       skillScore: 80,
     });
+    session.addCompanionPair(session.attendees[0].id, session.attendees[1].id);
 
     expect(session.hasAssignedCourt).toBe(true);
     expect(session.completedGameCount).toBe(1);
     expect(session.upcomingMatches.length).toBeGreaterThan(0);
     expect(session.guestCount).toBe(1);
+    expect(session.companionPairCount).toBe(1);
 
     fetchTodayAttendeesMock.mockResolvedValue({
       attendees: makeAttendees(4),
@@ -602,6 +653,7 @@ describe("session store upcoming matches", () => {
     expect(session.upcomingMatches).toHaveLength(0);
     expect(session.waitingQueue).toHaveLength(0);
     expect(session.guestCount).toBe(0);
+    expect(session.companionPairCount).toBe(0);
   });
 });
 

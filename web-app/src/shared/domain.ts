@@ -42,6 +42,13 @@ export interface GuestAttendeeInput {
   skillScore: number;
 }
 
+export interface CompanionPair {
+  id: string;
+  playerAId: string;
+  playerBId: string;
+  createdAt: string;
+}
+
 export interface Team {
   players: Attendee[];
 }
@@ -122,6 +129,7 @@ export interface SessionState {
   attendanceDate: string | null;
   sourceMembersCount: number;
   unmatchedAttendanceNames: string[];
+  companionPairs: CompanionPair[];
   courts: CourtState[];
   upcomingMatches: QueuedMatch[];
   waitingQueue: Attendee[];
