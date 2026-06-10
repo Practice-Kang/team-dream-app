@@ -209,6 +209,17 @@ function formatFetchedAt(value: string | null): string {
       </div>
     </section>
 
+    <div
+      v-if="session.syncStatus === 'saving' || session.syncError"
+      class="data-note sync-note"
+      :class="{ error: Boolean(session.syncError) }"
+      role="status"
+    >
+      <RefreshCw v-if="session.syncStatus === 'saving'" class="spinning" :size="17" />
+      <Database v-else :size="17" />
+      <span>{{ session.syncError || "공유 경기판 저장 중" }}</span>
+    </div>
+
     <div class="primary-actions">
       <button
         class="command primary"

@@ -86,38 +86,18 @@ export const onRequestPut: PagesFunction<SessionEnv> = async ({ env, request }) 
     updatedAt,
   };
 
-  await env.DB.prepare(
-    `
-      INSERT INTO sessions (
-        id,
-        write_token_hash,
-        payload,
-        current_round_index,
-        created_at,
-        updated_at,
-        expires_at,
-        version
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        payload = excluded.payload,
-        current_round_index = excluded.current_round_index,
-        updated_at = excluded.updated_at,
-        expires_at = excluded.expires_at,
-        version = excluded.version
-    `,
-  )
-    .bind(
-      CURRENT_SESSION_ID,
-      "admin-auth",
-      JSON.stringify(state),
-      state.currentRoundIndex,
-      existingActiveTodaySession && existing ? existing.created_at : updatedAt,
-      updatedAt,
-      Math.floor(now.getTime() / 1000) + SESSION_TTL_SECONDS,
-      version,
-    )
-    .run();
+  const saved = existingActiveTodaySession
+    ? await updateActiveTodaySession(env.DB, state, updatedAt, version, requestVersion)
+    : await saveNewOrInactiveSession(env.DB, state, updatedAt, version, existing);
+
+  if (!saved) {
+    const latest = await readCurrentSessionRow(env.DB);
+    if (latest && !isExpired(latest) && isTodaySession(latest)) {
+      return Response.json(toResponseBody(latest), { status: 409 });
+    }
+
+    return Response.json({ message: "공유 경기판이 먼저 변경되었습니다. 다시 시도해주세요." }, { status: 409 });
+  }
 
   return Response.json({
     session: state,
@@ -126,6 +106,121 @@ export const onRequestPut: PagesFunction<SessionEnv> = async ({ env, request }) 
   });
 };
 
+async function updateActiveTodaySession(
+  db: D1Database,
+  state: SessionState,
+  updatedAt: string,
+  version: number,
+  requestVersion: number | null,
+): Promise<boolean> {
+  if (requestVersion === null) return false;
+
+  const result = await db
+    .prepare(
+      `
+        UPDATE sessions SET
+          payload = ?,
+          current_round_index = ?,
+          updated_at = ?,
+          expires_at = ?,
+          version = ?
+        WHERE id = ? AND version = ?
+      `,
+    )
+    .bind(
+      JSON.stringify(state),
+      state.currentRoundIndex,
+      updatedAt,
+      sessionExpiresAt(),
+      version,
+      CURRENT_SESSION_ID,
+      requestVersion,
+    )
+    .run();
+
+  return (result.meta?.changes ?? 0) === 1;
+}
+
+async function saveNewOrInactiveSession(
+  db: D1Database,
+  state: SessionState,
+  updatedAt: string,
+  version: number,
+  existing: SessionRow | null,
+): Promise<boolean> {
+  if (existing) {
+    return replaceInactiveSession(db, state, updatedAt, version, existing.version);
+  }
+
+  const result = await db
+    .prepare(
+      `
+        INSERT INTO sessions (
+          id,
+          write_token_hash,
+          payload,
+          current_round_index,
+          created_at,
+          updated_at,
+          expires_at,
+          version
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO NOTHING
+      `,
+    )
+    .bind(
+      CURRENT_SESSION_ID,
+      "admin-auth",
+      JSON.stringify(state),
+      state.currentRoundIndex,
+      updatedAt,
+      updatedAt,
+      sessionExpiresAt(),
+      version,
+    )
+    .run();
+
+  return (result.meta?.changes ?? 0) > 0;
+}
+
+async function replaceInactiveSession(
+  db: D1Database,
+  state: SessionState,
+  updatedAt: string,
+  version: number,
+  existingVersion: number,
+): Promise<boolean> {
+  const result = await db
+    .prepare(
+      `
+        UPDATE sessions SET
+          write_token_hash = ?,
+          payload = ?,
+          current_round_index = ?,
+          created_at = ?,
+          updated_at = ?,
+          expires_at = ?,
+          version = ?
+        WHERE id = ? AND version = ?
+      `,
+    )
+    .bind(
+      "admin-auth",
+      JSON.stringify(state),
+      state.currentRoundIndex,
+      updatedAt,
+      updatedAt,
+      sessionExpiresAt(),
+      version,
+      CURRENT_SESSION_ID,
+      existingVersion,
+    )
+    .run();
+
+  return (result.meta?.changes ?? 0) === 1;
+}
+
 async function readCurrentSessionRow(db: D1Database): Promise<SessionRow | null> {
   return (
     (await db
@@ -133,6 +228,10 @@ async function readCurrentSessionRow(db: D1Database): Promise<SessionRow | null>
       .bind(CURRENT_SESSION_ID)
       .first<SessionRow>()) ?? null
   );
+}
+
+function sessionExpiresAt(now = Date.now()): number {
+  return Math.floor(now / 1000) + SESSION_TTL_SECONDS;
 }
 
 function toResponseBody(row: SessionRow) {

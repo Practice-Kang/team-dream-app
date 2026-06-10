@@ -2,7 +2,8 @@ import { createPinia, setActivePinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fetchTodayAttendees } from "@/services/members";
-import type { Attendee } from "@/shared/domain";
+import * as sessionService from "@/services/sessions";
+import type { Attendee, SessionState } from "@/shared/domain";
 
 import { useSessionStore } from "./session";
 
@@ -16,6 +17,7 @@ const fetchTodayAttendeesMock = vi.mocked(fetchTodayAttendees);
 describe("session store upcoming matches", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    vi.restoreAllMocks();
     fetchTodayAttendeesMock.mockReset();
   });
 
@@ -654,6 +656,33 @@ describe("session store upcoming matches", () => {
     expect(session.waitingQueue).toHaveLength(0);
     expect(session.guestCount).toBe(0);
     expect(session.companionPairCount).toBe(0);
+  });
+
+  it("applies the latest remote session when a save loses a version race", async () => {
+    const session = useSessionStore();
+    session.remoteVersion = 7;
+    session.attendees = makeAttendees(4);
+
+    const remoteState: SessionState = {
+      ...session.$state,
+      courtCount: 2,
+      attendees: makeAttendees(8),
+      updatedAt: "2026-06-10T10:00:00.000Z",
+    };
+    vi.spyOn(sessionService, "saveCurrentSession").mockRejectedValue(
+      new sessionService.SessionConflictError({
+        state: remoteState,
+        version: 8,
+        updatedAt: "2026-06-10T10:00:00.000Z",
+      }),
+    );
+
+    await session.persistRemoteSession();
+
+    expect(session.remoteVersion).toBe(8);
+    expect(session.courtCount).toBe(2);
+    expect(session.selectedCount).toBe(8);
+    expect(session.syncError).toBe("공유 경기판이 먼저 변경되어 최신 상태로 다시 맞췄습니다.");
   });
 });
 

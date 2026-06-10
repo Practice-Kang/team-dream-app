@@ -1090,6 +1090,10 @@ button {
   border-radius: 8px;
 }
 
+.sync-note {
+  margin-bottom: 12px;
+}
+
 .data-note.error {
   color: #8f2f20;
   background: #fff1ee;
