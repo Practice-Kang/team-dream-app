@@ -524,7 +524,70 @@ describe("session store upcoming matches", () => {
     expect(replaced).toBe(true);
     expect(playersOf(session.courts[0].match)).toContain(lockedPlayer?.id);
     expect(playersOf(session.upcomingMatches[0])).toContain(lockedPlayer?.id);
-    expect(session.waitingQueue.map((player) => player.id)).toContain(originalUpcomingPlayer.id);
+    expect([...session.upcomingMatches.flatMap((match) => playersOf(match)), ...session.waitingQueue.map((player) => player.id)]).toContain(
+      originalUpcomingPlayer.id,
+    );
+  });
+
+  it("moves an in-progress player from a later upcoming match into an earlier manual slot", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+    const players = makeAttendees(16, "남");
+
+    session.setCourtCount(2);
+    session.attendees = players;
+    session.courts = [
+      {
+        courtNumber: 1,
+        status: "empty",
+        match: null,
+        assignedAt: null,
+        startedAt: null,
+      },
+      {
+        courtNumber: 2,
+        status: "inProgress",
+        match: {
+          id: "court-2",
+          courtNumber: 2,
+          teamA: { players: [players[0], players[1]] },
+          teamB: { players: [players[2], players[3]] },
+        },
+        assignedAt: "2026-06-09T00:00:00.000Z",
+        startedAt: "2026-06-09T00:01:00.000Z",
+      },
+    ];
+    session.upcomingMatches = [
+      {
+        id: "next-1",
+        teamA: { players: [players[4], players[5]] },
+        teamB: { players: [players[6], players[7]] },
+      },
+      {
+        id: "next-2",
+        teamA: { players: [players[8], players[9]] },
+        teamB: { players: [players[10], players[11]] },
+      },
+      {
+        id: "next-3",
+        teamA: { players: [players[0], players[12]] },
+        teamB: { players: [players[13], players[14]] },
+      },
+    ];
+    session.waitingQueue = [players[15]];
+
+    const replaced = session.replaceEditableMatchPlayer(
+      { type: "upcoming", index: 0 },
+      { team: "teamA", playerIndex: 0 },
+      players[0].id,
+    );
+
+    expect(replaced).toBe(true);
+    expect(playersOf(session.courts[1].match)).toContain(players[0].id);
+    expect(playersOf(session.upcomingMatches[0])).toContain(players[0].id);
+    expect(playersOf(session.upcomingMatches[0])).not.toContain(players[4].id);
+    expect(playersOf(session.upcomingMatches[2])).toContain(players[4].id);
+    expect(playersOf(session.upcomingMatches[2])).not.toContain(players[0].id);
   });
 
   it("skips a blocked queued match when another court finishes first", () => {

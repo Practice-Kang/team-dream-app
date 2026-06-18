@@ -519,11 +519,18 @@ export const useSessionStore = defineStore("session", {
       const replacementLocation = findEditablePlayerLocation(this, replacementId);
       if (!replacementLocation || replacementLocation.player.isDisabled) return false;
       if (replacementLocation.kind === "locked") {
-        if (target.type !== "upcoming" || isPlayerInOtherUpcomingMatch(this, replacementId, target.index)) return false;
+        if (target.type !== "upcoming") return false;
 
         this.pushUndo("경기 수정 전");
         targetMatch[slot.team].players[slot.playerIndex] = replacementLocation.player;
-        insertWaitingPlayerIfEligible(this, currentPlayer, 0);
+        const existingFutureLocation = findPlayerInOtherUpcomingMatch(this, replacementId, target.index);
+        if (existingFutureLocation) {
+          existingFutureLocation.match[existingFutureLocation.slot.team].players[existingFutureLocation.slot.playerIndex] =
+            currentPlayer;
+          rebalanceMatchTeams(existingFutureLocation.match);
+        } else {
+          insertWaitingPlayerIfEligible(this, currentPlayer, 0);
+        }
         rebalanceMatchTeams(targetMatch);
         this.updatedAt = new Date().toISOString();
         void this.persistRemoteSession();
@@ -867,11 +874,18 @@ function findAssignedCourtWithPlayer(state: SessionState, playerId: string): Cou
   );
 }
 
-function isPlayerInOtherUpcomingMatch(state: SessionState, playerId: string, targetIndex: number): boolean {
-  return state.upcomingMatches.some((match, index) => {
-    if (index === targetIndex) return false;
-    return matchPlayers(match).some((player) => player.id === playerId);
-  });
+function findPlayerInOtherUpcomingMatch(
+  state: SessionState,
+  playerId: string,
+  targetIndex: number,
+): Extract<EditablePlayerLocation, { kind: "match" }> | null {
+  for (const [index, match] of state.upcomingMatches.entries()) {
+    if (index === targetIndex) continue;
+    const location = findPlayerInMatch(match, playerId);
+    if (location) return location;
+  }
+
+  return null;
 }
 
 function insertWaitingPlayerIfEligible(state: SessionState, player: Attendee, index: number): void {

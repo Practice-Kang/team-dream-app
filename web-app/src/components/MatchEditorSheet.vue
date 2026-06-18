@@ -61,9 +61,6 @@ const candidates = computed(() => {
   const addPlayer = (player: Attendee, source: string) => {
     if (seenIds.has(player.id)) return;
     if (player.isDisabled) return;
-    if (props.target?.type === "upcoming" && isPlayerInOtherUpcoming(player.id, props.target.index)) {
-      return;
-    }
     seenIds.add(player.id);
     if (keyword && !matchesKoreanText(player.name, keyword)) return;
 
@@ -102,13 +99,6 @@ function selectCandidate(playerId: string) {
 
 function playersOf(match: Pick<Match | QueuedMatch, "teamA" | "teamB">): Attendee[] {
   return [...match.teamA.players, ...match.teamB.players];
-}
-
-function isPlayerInOtherUpcoming(playerId: string, targetIndex: number): boolean {
-  return session.upcomingMatches.some((queuedMatch, index) => {
-    if (index === targetIndex) return false;
-    return playersOf(queuedMatch).some((player) => player.id === playerId);
-  });
 }
 </script>
 
