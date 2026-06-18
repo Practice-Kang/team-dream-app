@@ -4,6 +4,7 @@ import { Search, X } from "@lucide/vue";
 
 import PlayCountBadge from "@/components/PlayCountBadge.vue";
 import type { Attendee, EditableMatchTarget, Match, MatchSlot, QueuedMatch } from "@/shared/domain";
+import { matchesKoreanText } from "@/shared/koreanSearch";
 import { useSessionStore } from "@/stores/session";
 
 interface Candidate {
@@ -45,7 +46,7 @@ const match = computed(() => {
 
 const title = computed(() => {
   if (!props.target) return "경기 수정";
-  return props.target.type === "court" ? `${props.target.courtNumber}코트 수정` : "다음 1 수정";
+  return props.target.type === "court" ? `${props.target.courtNumber}코트 수정` : `다음 ${props.target.index + 1} 수정`;
 });
 
 const selectedPlayer = computed(
@@ -60,15 +61,25 @@ const candidates = computed(() => {
   const addPlayer = (player: Attendee, source: string) => {
     if (seenIds.has(player.id)) return;
     if (player.isDisabled) return;
+    if (props.target?.type === "upcoming" && isPlayerInOtherUpcoming(player.id, props.target.index)) {
+      return;
+    }
     seenIds.add(player.id);
-    if (keyword && !player.name.includes(keyword)) return;
+    if (keyword && !matchesKoreanText(player.name, keyword)) return;
 
     list.push({ player, source });
   };
 
   session.courts.forEach((court) => {
-    if (court.status !== "assigned" || !court.match) return;
-    playersOf(court.match).forEach((player) => addPlayer(player, `${court.courtNumber}코트`));
+    if (!court.match) return;
+    if (court.status === "assigned") {
+      playersOf(court.match).forEach((player) => addPlayer(player, `${court.courtNumber}코트`));
+      return;
+    }
+
+    if (props.target?.type === "upcoming" && court.status === "inProgress") {
+      playersOf(court.match).forEach((player) => addPlayer(player, `진행 ${court.courtNumber}코트`));
+    }
   });
 
   session.upcomingMatches.forEach((queuedMatch, index) => {
@@ -91,6 +102,13 @@ function selectCandidate(playerId: string) {
 
 function playersOf(match: Pick<Match | QueuedMatch, "teamA" | "teamB">): Attendee[] {
   return [...match.teamA.players, ...match.teamB.players];
+}
+
+function isPlayerInOtherUpcoming(playerId: string, targetIndex: number): boolean {
+  return session.upcomingMatches.some((queuedMatch, index) => {
+    if (index === targetIndex) return false;
+    return playersOf(queuedMatch).some((player) => player.id === playerId);
+  });
 }
 </script>
 

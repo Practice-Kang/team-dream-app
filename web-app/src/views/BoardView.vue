@@ -4,6 +4,7 @@ import { Search } from "@lucide/vue";
 
 import AppHeader from "@/components/AppHeader.vue";
 import type { CourtStatus } from "@/shared/domain";
+import { matchesKoreanText } from "@/shared/koreanSearch";
 import { SESSION_POLL_INTERVAL_MS } from "@/shared/sessionSource";
 import { useSessionStore } from "@/stores/session";
 
@@ -16,15 +17,16 @@ const waitingPlayers = computed(() => {
   const keyword = searchText.value.trim();
   if (!keyword) return session.waitingQueue;
 
-  return session.waitingQueue.filter((player) => player.name.includes(keyword));
+  return session.waitingQueue.filter((player) => matchesKoreanText(player.name, keyword));
 });
 
 const visibleUpcomingMatches = computed(() => {
   const keyword = searchText.value.trim();
-  if (!keyword) return session.upcomingMatches;
+  const matches = session.upcomingMatches.map((match, index) => ({ match, index }));
+  if (!keyword) return matches;
 
-  return session.upcomingMatches.filter((match) =>
-    [...match.teamA.players, ...match.teamB.players].some((player) => player.name.includes(keyword)),
+  return matches.filter(({ match }) =>
+    [...match.teamA.players, ...match.teamB.players].some((player) => matchesKoreanText(player.name, keyword)),
   );
 });
 
@@ -131,13 +133,13 @@ function formatTime(value: string): string {
 
     <section class="waiting-panel" aria-label="다음 경기">
       <div class="section-title">
-        <span>다음 1</span>
+        <span>다음 경기</span>
         <strong>{{ session.upcomingMatches.length ? "준비됨" : "없음" }}</strong>
       </div>
 
       <div v-if="visibleUpcomingMatches.length" class="match-list">
-        <article v-for="match in visibleUpcomingMatches" :key="match.id" class="match-row">
-          <div class="court-badge">다음 1</div>
+        <article v-for="{ match, index } in visibleUpcomingMatches" :key="match.id" class="match-row">
+          <div class="court-badge">다음 {{ index + 1 }}</div>
           <div class="teams">
             <p>{{ playerNames(match.teamA.players) }}</p>
             <span>vs</span>

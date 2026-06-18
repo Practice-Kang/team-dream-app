@@ -21,7 +21,7 @@ describe("session store upcoming matches", () => {
     fetchTodayAttendeesMock.mockReset();
   });
 
-  it("prepares only the first upcoming match from players not assigned to the current courts", () => {
+  it("prepares up to three upcoming matches and allows current players as future reservations", () => {
     const session = useSessionStore();
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
 
@@ -30,8 +30,9 @@ describe("session store upcoming matches", () => {
     session.assignInitialCourts();
 
     expect(session.courts.filter((court) => court.match)).toHaveLength(2);
-    expect(session.upcomingMatches).toHaveLength(1);
-    expect(session.waitingQueue).toHaveLength(4);
+    expect(session.upcomingMatches).toHaveLength(3);
+    expect(session.waitingQueue).toHaveLength(0);
+    expect(uniquePlayerIds(session.upcomingMatches.flatMap((match) => playersOf(match)))).toHaveLength(12);
   });
 
   it("adds a guest as a normal-frequency attendee before the first assignment", () => {
@@ -67,8 +68,8 @@ describe("session store upcoming matches", () => {
     session.setAttendees(makeAttendees(7, "남"));
     session.assignInitialCourts();
 
-    expect(session.upcomingMatches).toHaveLength(0);
-    expect(session.waitingQueue).toHaveLength(3);
+    expect(session.upcomingMatches).toHaveLength(1);
+    expect(session.waitingQueue).toHaveLength(0);
 
     const guest = session.addGuestAttendee({
       name: "게스트B",
@@ -77,9 +78,9 @@ describe("session store upcoming matches", () => {
     });
 
     expect(guest?.isGuest).toBe(true);
-    expect(session.upcomingMatches).toHaveLength(1);
+    expect(session.upcomingMatches).toHaveLength(2);
     expect(session.waitingQueue).toHaveLength(0);
-    expect(playersOf(session.upcomingMatches[0])).toContain(guest?.id);
+    expect(session.upcomingMatches.flatMap((match) => playersOf(match))).toContain(guest?.id);
   });
 
   it("updates only guest skill scores across current session copies", () => {
@@ -132,7 +133,7 @@ describe("session store upcoming matches", () => {
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
 
     session.setCourtCount(2);
-    session.setAttendees(makeAttendees(16, "남"));
+    session.setAttendees(makeAttendees(24, "남"));
     session.assignInitialCourts();
 
     const preparedGroup = groupKey(session.upcomingMatches[0]);
@@ -156,7 +157,7 @@ describe("session store upcoming matches", () => {
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
 
     session.setCourtCount(2);
-    session.setAttendees(makeAttendees(16, "남"));
+    session.setAttendees(makeAttendees(24, "남"));
     session.assignInitialCourts();
 
     const upcomingPlayer = session.upcomingMatches[0].teamA.players[0];
@@ -166,8 +167,8 @@ describe("session store upcoming matches", () => {
     expect(session.attendees.find((attendee) => attendee.id === upcomingPlayer.id)?.isDisabled).toBe(true);
     expect(playersOf(session.upcomingMatches[0])).not.toContain(upcomingPlayer.id);
     expect(session.waitingQueue.map((player) => player.id)).not.toContain(upcomingPlayer.id);
-    expect(session.upcomingMatches).toHaveLength(1);
-    expect(session.waitingQueue).toHaveLength(3);
+    expect(session.upcomingMatches).toHaveLength(3);
+    expect(session.waitingQueue.map((player) => player.id)).not.toContain(upcomingPlayer.id);
   });
 
   it("replaces a disabled assigned player before the court starts when a future player is available", () => {
@@ -219,15 +220,16 @@ describe("session store upcoming matches", () => {
     const upcomingPlayer = session.upcomingMatches[0].teamA.players[0];
 
     expect(session.setAttendeeDisabled(upcomingPlayer.id, true)).toBe(true);
-    expect(session.upcomingMatches).toHaveLength(0);
-    expect(session.waitingQueue).toHaveLength(3);
+    expect(session.upcomingMatches).toHaveLength(1);
+    expect(session.waitingQueue.map((player) => player.id)).not.toContain(upcomingPlayer.id);
 
     expect(session.setAttendeeDisabled(upcomingPlayer.id, false)).toBe(true);
 
     expect(session.attendees.find((attendee) => attendee.id === upcomingPlayer.id)?.isDisabled).toBe(false);
     expect(session.upcomingMatches).toHaveLength(1);
-    expect(session.waitingQueue).toHaveLength(0);
-    expect(playersOf(session.upcomingMatches[0])).toContain(upcomingPlayer.id);
+    expect([...session.upcomingMatches.flatMap((match) => playersOf(match)), ...session.waitingQueue.map((player) => player.id)]).toContain(
+      upcomingPlayer.id,
+    );
   });
 
   it("does not assign disabled attendees to the first courts", () => {
@@ -282,7 +284,7 @@ describe("session store upcoming matches", () => {
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
 
     session.setCourtCount(2);
-    session.setAttendees(makeAttendees(16, "남"));
+    session.setAttendees(makeAttendees(24, "남"));
     session.assignInitialCourts();
 
     const upcomingPlayer = session.upcomingMatches[0].teamA.players[0];
@@ -300,7 +302,7 @@ describe("session store upcoming matches", () => {
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
 
     session.setCourtCount(2);
-    session.setAttendees(makeAttendees(16, "남"));
+    session.setAttendees(makeAttendees(24, "남"));
     session.assignInitialCourts();
 
     const firstUpcomingIds = playersOf(session.upcomingMatches[0]);
@@ -309,7 +311,7 @@ describe("session store upcoming matches", () => {
 
     expect(session.courts[0].status).toBe("assigned");
     expect(playersOf(session.courts[0].match)).toEqual(firstUpcomingIds);
-    expect(session.upcomingMatches).toHaveLength(1);
+    expect(session.upcomingMatches).toHaveLength(3);
     expect(session.waitingQueue).toHaveLength(4);
   });
 
@@ -336,7 +338,7 @@ describe("session store upcoming matches", () => {
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
 
     session.setCourtCount(2);
-    session.setAttendees(makeAttendees(16, "남"));
+    session.setAttendees(makeAttendees(24, "남"));
     session.assignInitialCourts();
     session.startCourt(1);
 
@@ -363,7 +365,7 @@ describe("session store upcoming matches", () => {
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
 
     session.setCourtCount(2);
-    session.setAttendees(makeAttendees(16, "남"));
+    session.setAttendees(makeAttendees(24, "남"));
     session.assignInitialCourts();
 
     const originalPlayerId = session.courts[0].match?.teamA.players[0].id;
@@ -393,7 +395,7 @@ describe("session store upcoming matches", () => {
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
 
     session.setCourtCount(2);
-    session.setAttendees(makeAttendees(16, "남"));
+    session.setAttendees(makeAttendees(24, "남"));
     session.assignInitialCourts();
 
     const originalPlayerId = session.upcomingMatches[0].teamB.players[1].id;
@@ -501,6 +503,63 @@ describe("session store upcoming matches", () => {
     expect(session.undoStack).toHaveLength(undoCount);
   });
 
+  it("allows a player from an in-progress court to be manually reserved in a next match", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+
+    session.setCourtCount(2);
+    session.setAttendees(makeAttendees(24, "남"));
+    session.assignInitialCourts();
+    session.startCourt(1);
+
+    const lockedPlayer = session.courts[0].match?.teamA.players[0];
+    const originalUpcomingPlayer = session.upcomingMatches[0].teamA.players[0];
+
+    const replaced = session.replaceEditableMatchPlayer(
+      { type: "upcoming", index: 0 },
+      { team: "teamA", playerIndex: 0 },
+      lockedPlayer?.id ?? "",
+    );
+
+    expect(replaced).toBe(true);
+    expect(playersOf(session.courts[0].match)).toContain(lockedPlayer?.id);
+    expect(playersOf(session.upcomingMatches[0])).toContain(lockedPlayer?.id);
+    expect(session.waitingQueue.map((player) => player.id)).toContain(originalUpcomingPlayer.id);
+  });
+
+  it("skips a blocked queued match when another court finishes first", () => {
+    const session = useSessionStore();
+    vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
+
+    session.setCourtCount(2);
+    session.setAttendees(makeAttendees(24, "남"));
+    session.assignInitialCourts();
+    session.startCourt(2);
+
+    const blockedMatch = {
+      id: "blocked-next",
+      teamA: { players: [...(session.courts[1].match?.teamA.players ?? [])] },
+      teamB: { players: [...(session.courts[1].match?.teamB.players ?? [])] },
+    };
+    const assignableMatch = session.upcomingMatches[0];
+    session.courts[0] = {
+      courtNumber: 1,
+      status: "empty",
+      match: null,
+      assignedAt: null,
+      startedAt: null,
+    };
+    session.upcomingMatches = [blockedMatch, assignableMatch];
+    session.waitingQueue = [];
+
+    session.assignSingleCourt(1);
+
+    expect(session.courts[0].status).toBe("assigned");
+    expect(playersOf(session.courts[0].match)).toEqual(playersOf(assignableMatch));
+    expect(playersOf(session.courts[0].match)).not.toEqual(playersOf(blockedMatch));
+    expect(playersOf(session.courts[1].match)).toEqual(playersOf(blockedMatch));
+  });
+
   it("allows manual edits to create a 3-to-1 gender match while keeping four players", () => {
     const session = useSessionStore();
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
@@ -527,7 +586,7 @@ describe("session store upcoming matches", () => {
     expect(isThreeToOneMatch(maleCourt?.match as MatchLike)).toBe(true);
   });
 
-  it("rebuilds one upcoming match from waiting and finished players in the common 16-player 2-court case", () => {
+  it("rebuilds three upcoming matches from waiting and finished players in the common 16-player 2-court case", () => {
     const session = useSessionStore();
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
 
@@ -541,8 +600,8 @@ describe("session store upcoming matches", () => {
     session.finishCourt(1);
 
     const nextGroupKeys = session.upcomingMatches.map((match) => groupKey(match));
-    expect(session.upcomingMatches).toHaveLength(1);
-    expect(session.waitingQueue).toHaveLength(4);
+    expect(session.upcomingMatches).toHaveLength(3);
+    expect(session.waitingQueue).toHaveLength(0);
     expect(nextGroupKeys).not.toContain(finishedGroupKey);
   });
 
@@ -561,8 +620,8 @@ describe("session store upcoming matches", () => {
 
     const nextGroupKeys = session.upcomingMatches.map((match) => groupKey(match));
 
-    expect(session.upcomingMatches).toHaveLength(1);
-    expect(session.waitingQueue).toHaveLength(4);
+    expect(session.upcomingMatches).toHaveLength(2);
+    expect(session.waitingQueue).toHaveLength(0);
     expect(nextGroupKeys).not.toContain(oldGroupB.map((player) => player.id).sort().join("|"));
   });
 
@@ -573,12 +632,13 @@ describe("session store upcoming matches", () => {
 
     session.rebuildUpcomingMatchesFromGroups([idlePlayers]);
 
-    expect(session.upcomingMatches).toHaveLength(1);
+    expect(session.upcomingMatches).toHaveLength(3);
     expect(isThreeToOneMatch(session.upcomingMatches[0])).toBe(false);
-    expect(session.waitingQueue).toHaveLength(8);
+    expect(session.upcomingMatches.every((match) => !isThreeToOneMatch(match))).toBe(true);
+    expect(session.waitingQueue).toHaveLength(0);
   });
 
-  it("keeps only one upcoming match in the common 24-player 3-court case", () => {
+  it("keeps three upcoming matches in the common 24-player 3-court case", () => {
     const session = useSessionStore();
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
 
@@ -586,16 +646,16 @@ describe("session store upcoming matches", () => {
     session.setAttendees(makeAttendees(24, "남"));
     session.assignInitialCourts();
 
-    expect(session.upcomingMatches).toHaveLength(1);
-    expect(session.waitingQueue).toHaveLength(8);
+    expect(session.upcomingMatches).toHaveLength(3);
+    expect(session.waitingQueue).toHaveLength(0);
 
     const finishedGroupKey = groupKey(session.courts[0].match);
 
     session.startCourt(1);
     session.finishCourt(1);
 
-    expect(session.upcomingMatches).toHaveLength(1);
-    expect(session.waitingQueue).toHaveLength(8);
+    expect(session.upcomingMatches).toHaveLength(3);
+    expect(session.waitingQueue).toHaveLength(0);
     expect(groupKey(session.upcomingMatches[0])).not.toBe(finishedGroupKey);
   });
 
@@ -689,6 +749,10 @@ describe("session store upcoming matches", () => {
 function playersOf(match: MatchLike | null): string[] {
   if (!match) return [];
   return [...match.teamA.players, ...match.teamB.players].map((player) => player.id);
+}
+
+function uniquePlayerIds(playerIds: string[]): string[] {
+  return [...new Set(playerIds)];
 }
 
 function matchPlayersById(match: MatchLike | null, playerId: string): Attendee[] {

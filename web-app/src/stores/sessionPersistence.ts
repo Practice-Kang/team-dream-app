@@ -13,6 +13,7 @@ const SESSION_STORAGE_KEY = "team-dream.session.v1";
 const SESSION_STORAGE_VERSION = 1;
 const MAX_PERSISTED_SESSION_AGE_MS = 18 * 60 * 60 * 1000;
 const MAX_UNDO_STACK_SIZE = 10;
+const MAX_UPCOMING_MATCHES = 3;
 
 interface PersistedSessionPayload {
   version: typeof SESSION_STORAGE_VERSION;
@@ -130,14 +131,15 @@ function normalizeUpcomingAndWaiting(
   waitingPlayers: Attendee[] | undefined,
 ): Pick<SessionState, "upcomingMatches" | "waitingQueue"> {
   const normalizedMatches = normalizeQueuedMatches(matches);
-  const [firstMatch, ...extraMatches] = normalizedMatches;
+  const upcomingMatches = normalizedMatches.slice(0, MAX_UPCOMING_MATCHES);
+  const extraMatches = normalizedMatches.slice(MAX_UPCOMING_MATCHES);
   const waitingQueue = [
     ...extraMatches.flatMap((match) => [...match.teamA.players, ...match.teamB.players]),
     ...(Array.isArray(waitingPlayers) ? waitingPlayers : []),
   ];
 
   return {
-    upcomingMatches: firstMatch ? [firstMatch] : [],
+    upcomingMatches,
     waitingQueue,
   };
 }

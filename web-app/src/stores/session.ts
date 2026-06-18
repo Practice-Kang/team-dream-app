@@ -11,6 +11,7 @@ import type {
   GuestAttendeeInput,
   Match,
   MatchSlot,
+  PlayerRoundStats,
   PlayFrequencyPreference,
   QueuedMatch,
   SessionState,
@@ -20,6 +21,7 @@ import { createSessionSnapshot, sanitizeSessionState } from "@/stores/sessionPer
 
 type SyncStatus = "idle" | "loading" | "saving" | "error";
 const MAX_UNDO_STACK_SIZE = 10;
+const MAX_UPCOMING_MATCHES = 3;
 
 interface SessionStoreState extends SessionState {
   remoteVersion: number | null;
@@ -102,13 +104,13 @@ export const useSessionStore = defineStore("session", {
     selectedCount: (state) => state.attendees.length,
     activeAttendeeCount: (state) => state.attendees.filter((attendee) => isActiveAttendee(attendee)).length,
     disabledCount: (state) => state.attendees.filter((attendee) => attendee.isDisabled).length,
-    playingCount: (state) =>
-      state.courts.reduce((count, court) => count + (court.match ? matchPlayers(court.match).length : 0), 0),
+    playingCount: (state) => currentCourtPlayerIds(state).size,
     upcomingPlayerCount: (state) =>
       state.upcomingMatches.reduce((count, match) => count + matchPlayers(match).length, 0),
-    waitingCount: (state) =>
-      state.waitingQueue.length +
-      state.upcomingMatches.reduce((count, match) => count + matchPlayers(match).length, 0),
+    waitingCount: (state) => {
+      const courtPlayerIds = currentCourtPlayerIds(state);
+      return state.attendees.filter((attendee) => isActiveAttendee(attendee) && !courtPlayerIds.has(attendee.id)).length;
+    },
     completedGameCount: (state) => state.completedMatches.length,
     guestCount: (state) => state.attendees.filter((attendee) => attendee.isGuest).length,
     companionPairCount: (state) => state.companionPairs.length,
@@ -118,7 +120,7 @@ export const useSessionStore = defineStore("session", {
     hasAssignedCourt: (state) => state.courts.some((court) => court.match),
     currentRound: (state) => {
       const matches = state.courts.flatMap((court) => (court.match ? [court.match] : []));
-      const waiting = [...state.upcomingMatches.flatMap((match) => matchPlayers(match)), ...state.waitingQueue];
+      const waiting = uniqueActivePlayers([...state.upcomingMatches.flatMap((match) => matchPlayers(match)), ...state.waitingQueue]);
       if (matches.length === 0 && waiting.length === 0) return null;
 
       return {
@@ -269,9 +271,10 @@ export const useSessionStore = defineStore("session", {
 
       if (hasBuiltMatchPlan(this)) {
         this.waitingQueue.push(guest);
-        if (this.upcomingMatches.length === 0 && this.waitingQueue.length >= 4) {
-          this.rebuildUpcomingMatchesFromGroups([this.waitingQueue]);
-        }
+        this.rebuildUpcomingMatchesFromGroups([
+          ...this.upcomingMatches.map((match) => matchPlayers(match)),
+          this.waitingQueue,
+        ]);
       }
 
       this.updatedAt = guest.selectedAt;
@@ -297,9 +300,10 @@ export const useSessionStore = defineStore("session", {
       if (!attendee || Boolean(attendee.isDisabled) === disabled) return true;
       if (disabled && isPlayerInInProgressCourt(this, attendeeId)) return false;
 
+      const courtPlayerIds = currentCourtPlayerIds(this);
       const futurePlayers = uniqueActivePlayers(
         [...this.upcomingMatches.flatMap((match) => matchPlayers(match)), ...this.waitingQueue].filter(
-          (player) => player.id !== attendeeId,
+          (player) => player.id !== attendeeId && !courtPlayerIds.has(player.id),
         ),
       );
       const currentLocation = disabled ? findEditablePlayerLocation(this, attendeeId) : null;
@@ -418,7 +422,15 @@ export const useSessionStore = defineStore("session", {
       }
 
       const assignedAt = new Date().toISOString();
-      const assigned = this.assignNextQueuedMatchToCourt(court, assignedAt);
+      let assigned = this.assignNextQueuedMatchToCourt(court, assignedAt);
+      if (!assigned) {
+        this.rebuildUpcomingMatchesFromGroups([
+          ...this.upcomingMatches.map((match) => matchPlayers(match)),
+          this.waitingQueue,
+        ]);
+        assigned = this.assignNextQueuedMatchToCourt(court, assignedAt);
+      }
+
       if (!assigned) {
         court.status = "empty";
         court.match = null;
@@ -465,7 +477,7 @@ export const useSessionStore = defineStore("session", {
       court.assignedAt = null;
       court.startedAt = null;
 
-      const assigned = this.assignNextQueuedMatchToCourt(court, completedAt);
+      let assigned = this.assignNextQueuedMatchToCourt(court, completedAt);
       const idlePlayers = interleavePlayerGroups([
         ...this.upcomingMatches.map((match) => matchPlayers(match)),
         this.waitingQueue,
@@ -474,7 +486,7 @@ export const useSessionStore = defineStore("session", {
       this.rebuildUpcomingMatchesFromGroups([idlePlayers]);
 
       if (!assigned) {
-        this.assignNextQueuedMatchToCourt(court, completedAt);
+        assigned = this.assignNextQueuedMatchToCourt(court, completedAt);
         this.rebuildUpcomingMatchesFromGroups([
           ...this.upcomingMatches.map((match) => matchPlayers(match)),
           this.waitingQueue,
@@ -502,9 +514,21 @@ export const useSessionStore = defineStore("session", {
       const currentPlayer = targetMatch?.[slot.team]?.players[slot.playerIndex];
       if (!targetMatch || !currentPlayer) return false;
       if (currentPlayer.id === replacementId) return true;
+      if (matchPlayers(targetMatch).some((player) => player.id === replacementId)) return false;
 
       const replacementLocation = findEditablePlayerLocation(this, replacementId);
-      if (!replacementLocation || replacementLocation.kind === "locked" || replacementLocation.player.isDisabled) return false;
+      if (!replacementLocation || replacementLocation.player.isDisabled) return false;
+      if (replacementLocation.kind === "locked") {
+        if (target.type !== "upcoming" || isPlayerInOtherUpcomingMatch(this, replacementId, target.index)) return false;
+
+        this.pushUndo("경기 수정 전");
+        targetMatch[slot.team].players[slot.playerIndex] = replacementLocation.player;
+        insertWaitingPlayerIfEligible(this, currentPlayer, 0);
+        rebalanceMatchTeams(targetMatch);
+        this.updatedAt = new Date().toISOString();
+        void this.persistRemoteSession();
+        return true;
+      }
 
       this.pushUndo("경기 수정 전");
       targetMatch[slot.team].players[slot.playerIndex] = replacementLocation.player;
@@ -514,7 +538,8 @@ export const useSessionStore = defineStore("session", {
           currentPlayer;
         rebalanceMatchTeams(replacementLocation.match);
       } else {
-        this.waitingQueue.splice(replacementLocation.index, 1, currentPlayer);
+        this.waitingQueue.splice(replacementLocation.index, 1);
+        insertWaitingPlayerIfEligible(this, currentPlayer, replacementLocation.index);
       }
 
       rebalanceMatchTeams(targetMatch);
@@ -527,20 +552,24 @@ export const useSessionStore = defineStore("session", {
     },
     rebuildUpcomingMatchesFromGroups(groups: Attendee[][], options: { preserveOrder?: boolean } = {}) {
       const rawIdlePlayers = options.preserveOrder === false ? groups.flat() : interleavePlayerGroups(groups);
-      const idlePlayers = uniqueActivePlayers(rawIdlePlayers);
-      const gameCount = Math.floor(idlePlayers.length / 4);
+      const priorityPlayers = uniqueActivePlayers(rawIdlePlayers);
+      const courtPlayers = activeCourtPlayers(this);
+      const courtPlayerIds = new Set(courtPlayers.map((player) => player.id));
+      const candidates = uniqueActivePlayers([...priorityPlayers, ...courtPlayers]);
+      const gameCount = Math.min(MAX_UPCOMING_MATCHES, Math.floor(candidates.length / 4));
       this.upcomingMatches = [];
 
       if (gameCount <= 0) {
-        this.waitingQueue = idlePlayers;
+        this.waitingQueue = priorityPlayers.filter((player) => !courtPlayerIds.has(player.id));
         return;
       }
 
       const round = generateRound({
-        attendees: idlePlayers,
-        courtCount: Math.min(1, gameCount),
+        attendees: candidates,
+        courtCount: gameCount,
         seed: `upcoming-${this.completedMatches.length}-${this.matchSequence}`,
         preserveOrder: options.preserveOrder !== false,
+        stats: buildFutureSelectionStats(this, candidates, priorityPlayers),
         companionPairs: this.companionPairs,
       });
 
@@ -551,10 +580,18 @@ export const useSessionStore = defineStore("session", {
       }));
 
       this.upcomingMatches = queuedMatches;
-      this.waitingQueue = round.waiting;
+      const queuedPlayerIds = new Set(queuedMatches.flatMap((match) => matchPlayers(match)).map((player) => player.id));
+      this.waitingQueue = uniqueActivePlayers([...round.waiting, ...priorityPlayers]).filter(
+        (player) => !courtPlayerIds.has(player.id) && !queuedPlayerIds.has(player.id),
+      );
     },
     assignNextQueuedMatchToCourt(court: CourtState, assignedAt: string) {
-      const queuedMatch = this.upcomingMatches.shift();
+      const queuedMatchIndex = this.upcomingMatches.findIndex((match) =>
+        isQueuedMatchAssignableToCourt(this, match, court.courtNumber),
+      );
+      if (queuedMatchIndex < 0) return false;
+
+      const [queuedMatch] = this.upcomingMatches.splice(queuedMatchIndex, 1);
       if (!queuedMatch) return false;
 
       court.status = "assigned";
@@ -595,6 +632,46 @@ function appendUndoEntry<T>(stack: T[], entry: T): T[] {
 
 function isActiveAttendee(attendee: Attendee): boolean {
   return !attendee.isDisabled;
+}
+
+function currentCourtPlayerIds(state: SessionState, exceptCourtNumber?: number): Set<string> {
+  return new Set(activeCourtPlayers(state, exceptCourtNumber).map((player) => player.id));
+}
+
+function activeCourtPlayers(state: SessionState, exceptCourtNumber?: number): Attendee[] {
+  return state.courts.flatMap((court) => {
+    if (court.courtNumber === exceptCourtNumber || !court.match || court.status === "empty") return [];
+    return matchPlayers(court.match);
+  });
+}
+
+function buildFutureSelectionStats(
+  state: SessionState,
+  candidates: Attendee[],
+  priorityPlayers: Attendee[],
+): Record<string, PlayerRoundStats> {
+  const courtPlayerIds = currentCourtPlayerIds(state);
+  const priorityWaitScores = new Map<string, number>();
+
+  priorityPlayers.forEach((player, index) => {
+    priorityWaitScores.set(player.id, Math.max(priorityPlayers.length - index, 1));
+  });
+
+  return Object.fromEntries(
+    candidates.map((player) => [
+      player.id,
+      {
+        gamesPlayed: player.playCount,
+        waits: priorityWaitScores.get(player.id) ?? 0,
+        playedPreviousRound: courtPlayerIds.has(player.id),
+      },
+    ]),
+  );
+}
+
+function isQueuedMatchAssignableToCourt(state: SessionState, match: QueuedMatch, courtNumber: number): boolean {
+  const unavailablePlayerIds = currentCourtPlayerIds(state, courtNumber);
+  return matchPlayers(match).every((player) => !unavailablePlayerIds.has(player.id));
 }
 
 function uniqueActivePlayers(players: Attendee[]): Attendee[] {
@@ -788,6 +865,22 @@ function findAssignedCourtWithPlayer(state: SessionState, playerId: string): Cou
         matchPlayers(court.match).some((player) => player.id === playerId),
     ) ?? null
   );
+}
+
+function isPlayerInOtherUpcomingMatch(state: SessionState, playerId: string, targetIndex: number): boolean {
+  return state.upcomingMatches.some((match, index) => {
+    if (index === targetIndex) return false;
+    return matchPlayers(match).some((player) => player.id === playerId);
+  });
+}
+
+function insertWaitingPlayerIfEligible(state: SessionState, player: Attendee, index: number): void {
+  if (!isActiveAttendee(player)) return;
+  if (currentCourtPlayerIds(state).has(player.id)) return;
+  if (state.upcomingMatches.some((match) => matchPlayers(match).some((candidate) => candidate.id === player.id))) return;
+  if (state.waitingQueue.some((candidate) => candidate.id === player.id)) return;
+
+  state.waitingQueue.splice(Math.max(0, Math.min(index, state.waitingQueue.length)), 0, player);
 }
 
 function replacePlayerByIdInMatch(match: Match | QueuedMatch, playerId: string, replacement: Attendee): boolean {
