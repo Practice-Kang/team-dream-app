@@ -398,13 +398,18 @@ function buildGroupsFromSelectedPlayers(selectedMales: RankedAttendee[], selecte
 function dealSameGenderGroups(players: RankedAttendee[], groupCount: number): RankedAttendee[][] {
   if (groupCount <= 0) return [];
 
-  const groups: RankedAttendee[][] = Array.from({ length: groupCount }, () => []);
+  return [...players]
+    .sort((a, b) => {
+      const skillDiff = scoreOf(b.attendee) - scoreOf(a.attendee);
+      if (skillDiff !== 0) return skillDiff;
 
-  players.forEach((player, index) => {
-    groups[Math.floor(index / 2) % groupCount].push(player);
-  });
-
-  return groups;
+      return a.rank - b.rank;
+    })
+    .reduce<RankedAttendee[][]>((groups, player, index) => {
+      const groupIndex = Math.floor(index / 4);
+      groups[groupIndex] = [...(groups[groupIndex] ?? []), player];
+      return groups;
+    }, []);
 }
 
 function groupRank(group: RankedAttendee[]): number {

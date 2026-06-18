@@ -193,6 +193,33 @@ describe("generateRound", () => {
     expect(teamNames).toEqual(["박수란+정가람", "박영은+백동주"]);
   });
 
+  it("clusters same-gender games by skill band before balancing teams", () => {
+    const attendees = [
+      makeAttendee(1, "남", 100),
+      makeAttendee(2, "남", 95),
+      makeAttendee(3, "남", 90),
+      makeAttendee(4, "남", 85),
+      makeAttendee(5, "남", 40),
+      makeAttendee(6, "남", 35),
+      makeAttendee(7, "남", 30),
+      makeAttendee(8, "남", 25),
+    ];
+
+    const round = generateRound({
+      attendees,
+      courtCount: 2,
+      preserveOrder: true,
+    });
+
+    const skillSpreads = round.matches.map((match) => {
+      const scores = playersOf(match).map((player) => player.skillScore ?? 50);
+      return Math.max(...scores) - Math.min(...scores);
+    });
+
+    expect(skillSpreads).toEqual([15, 15]);
+    expect(round.matches.some((match) => playersOf(match).some((player) => player.skillScore === 100) && playersOf(match).some((player) => player.skillScore === 25))).toBe(false);
+  });
+
   it("breaks same-gender groups when an interleaved waiting queue is preserved", () => {
     const oldGroupA = [3, 5, 7, 9].map((no) => makeAttendee(no, "남", 50));
     const oldGroupB = [10, 12, 14, 16].map((no) => makeAttendee(no, "남", 50));
