@@ -472,6 +472,8 @@ function readMembers_(sheet) {
 }
 
 function writeMemberSheet_(sheet, members) {
+  resetManagedSheetView_(sheet);
+
   const clearRows = Math.max(sheet.getLastRow(), members.length + 1);
   const clearBodyRows = Math.max(clearRows - 1, 1);
   sheet.getRange(1, 1, clearRows, MEMBER_SHEET_COLUMN_COUNT_).clearContent();
@@ -537,6 +539,8 @@ function writeMemberSheet_(sheet, members) {
 }
 
 function syncTodayCheck_(sheet, members) {
+  resetManagedSheetView_(sheet);
+
   const cfg = TODAY_CHECK_CONFIG_;
   const startRow = cfg.startRow;
   const rowsToClear = Math.max(sheet.getLastRow() - startRow + 1, members.length, 1);
@@ -557,6 +561,8 @@ function syncTodayCheck_(sheet, members) {
 }
 
 function syncDashboard_(sheet, members) {
+  resetManagedSheetView_(sheet);
+
   const startRow = 7;
   const endRow = startRow + members.length - 1;
   const rowsToClear = Math.max(sheet.getLastRow() - startRow + 1, members.length, 1);
@@ -782,6 +788,18 @@ function normalizeNo_(value) {
 
 function isStaff_(value) {
   return String(value || '').trim().toUpperCase() === 'Y';
+}
+
+function resetManagedSheetView_(sheet) {
+  const filter = sheet.getFilter();
+  if (filter) {
+    filter.remove();
+  }
+
+  const maxRows = sheet.getMaxRows();
+  if (maxRows > 0) {
+    sheet.showRows(1, maxRows);
+  }
 }
 
 function isStaffColor_(color) {
