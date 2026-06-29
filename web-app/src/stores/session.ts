@@ -206,7 +206,11 @@ export const useSessionStore = defineStore("session", {
         const response = await fetchTodayAttendees();
         this.id = CURRENT_SESSION_ID;
         this.matchingPolicyVersion = MATCHING_POLICY_VERSION;
-        this.attendees = response.attendees;
+        this.attendees = response.attendees.map((attendee) => ({
+          ...attendee,
+          isDisabled: true,
+          disabledAt: response.fetchedAt,
+        }));
         this.attendeesFetchedAt = response.fetchedAt;
         this.attendanceDate = response.attendanceDate;
         this.sourceMembersCount = response.membersCount;
@@ -478,12 +482,11 @@ export const useSessionStore = defineStore("session", {
       court.startedAt = null;
 
       let assigned = this.assignNextQueuedMatchToCourt(court, completedAt);
-      const idlePlayers = interleavePlayerGroups([
+      this.rebuildUpcomingMatchesFromGroups([
         ...this.upcomingMatches.map((match) => matchPlayers(match)),
         this.waitingQueue,
         finishedPlayers,
       ]);
-      this.rebuildUpcomingMatchesFromGroups([idlePlayers]);
 
       if (!assigned) {
         assigned = this.assignNextQueuedMatchToCourt(court, completedAt);
@@ -558,22 +561,35 @@ export const useSessionStore = defineStore("session", {
       this.undoStack = appendUndoEntry(this.undoStack, createUndoEntry(this, label));
     },
     rebuildUpcomingMatchesFromGroups(groups: Attendee[][], options: { preserveOrder?: boolean } = {}) {
+      const courtPlayerIds = currentCourtPlayerIds(this);
+      const reservedGroups = explicitCourtPlayerReservationGroups(groups, courtPlayerIds, MAX_UPCOMING_MATCHES);
+      const reservedPlayerIds = new Set(reservedGroups.flatMap((group) => group.map((player) => player.id)));
       const rawIdlePlayers = options.preserveOrder === false ? groups.flat() : interleavePlayerGroups(groups);
-      const priorityPlayers = uniqueActivePlayers(rawIdlePlayers);
-      const courtPlayers = activeCourtPlayers(this);
-      const courtPlayerIds = new Set(courtPlayers.map((player) => player.id));
-      const candidates = uniqueActivePlayers([...priorityPlayers, ...courtPlayers]);
-      const gameCount = Math.min(MAX_UPCOMING_MATCHES, Math.floor(candidates.length / 4));
-      this.upcomingMatches = [];
+      const priorityPlayers = uniqueActivePlayers(rawIdlePlayers).filter(
+        (player) => !courtPlayerIds.has(player.id) && !reservedPlayerIds.has(player.id),
+      );
+      const candidates = priorityPlayers;
+      const autoGameCount = Math.min(MAX_UPCOMING_MATCHES - reservedGroups.length, Math.floor(candidates.length / 4));
+      const reservedMatches = reservedGroups.map((group, index): QueuedMatch => {
+        const [teamA, teamB] = buildBalancedTeams(group);
 
-      if (gameCount <= 0) {
-        this.waitingQueue = priorityPlayers.filter((player) => !courtPlayerIds.has(player.id));
+        return {
+          id: `queued-reserved-${Date.now()}-${index + 1}`,
+          teamA,
+          teamB,
+        };
+      });
+      this.upcomingMatches = reservedMatches;
+
+      if (autoGameCount <= 0) {
+        const queuedPlayerIds = new Set(this.upcomingMatches.flatMap((match) => matchPlayers(match)).map((player) => player.id));
+        this.waitingQueue = priorityPlayers.filter((player) => !queuedPlayerIds.has(player.id));
         return;
       }
 
       const round = generateRound({
         attendees: candidates,
-        courtCount: gameCount,
+        courtCount: autoGameCount,
         seed: `upcoming-${this.completedMatches.length}-${this.matchSequence}`,
         preserveOrder: options.preserveOrder !== false,
         stats: buildFutureSelectionStats(this, candidates, priorityPlayers),
@@ -586,8 +602,8 @@ export const useSessionStore = defineStore("session", {
         teamB: match.teamB,
       }));
 
-      this.upcomingMatches = queuedMatches;
-      const queuedPlayerIds = new Set(queuedMatches.flatMap((match) => matchPlayers(match)).map((player) => player.id));
+      this.upcomingMatches = [...reservedMatches, ...queuedMatches];
+      const queuedPlayerIds = new Set(this.upcomingMatches.flatMap((match) => matchPlayers(match)).map((player) => player.id));
       this.waitingQueue = uniqueActivePlayers([...round.waiting, ...priorityPlayers]).filter(
         (player) => !courtPlayerIds.has(player.id) && !queuedPlayerIds.has(player.id),
       );
@@ -692,6 +708,27 @@ function uniqueActivePlayers(players: Attendee[]): Attendee[] {
   });
 
   return uniquePlayers;
+}
+
+function explicitCourtPlayerReservationGroups(groups: Attendee[][], courtPlayerIds: Set<string>, maxGroups: number): Attendee[][] {
+  if (courtPlayerIds.size === 0 || maxGroups <= 0) return [];
+
+  const usedIds = new Set<string>();
+  const reservations: Attendee[][] = [];
+
+  for (const group of groups) {
+    const players = uniqueActivePlayers(group);
+    if (players.length !== 4) continue;
+    if (!players.some((player) => courtPlayerIds.has(player.id))) continue;
+    if (players.some((player) => usedIds.has(player.id))) continue;
+
+    players.forEach((player) => usedIds.add(player.id));
+    reservations.push(players);
+
+    if (reservations.length >= maxGroups) break;
+  }
+
+  return reservations;
 }
 
 function hasMeaningfulSession(state: SessionState): boolean {

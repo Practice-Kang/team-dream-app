@@ -21,7 +21,7 @@ describe("session store upcoming matches", () => {
     fetchTodayAttendeesMock.mockReset();
   });
 
-  it("prepares up to three upcoming matches and allows current players as future reservations", () => {
+  it("prepares upcoming matches only from players outside current courts", () => {
     const session = useSessionStore();
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
 
@@ -30,9 +30,13 @@ describe("session store upcoming matches", () => {
     session.assignInitialCourts();
 
     expect(session.courts.filter((court) => court.match)).toHaveLength(2);
-    expect(session.upcomingMatches).toHaveLength(3);
+    expect(session.upcomingMatches).toHaveLength(2);
     expect(session.waitingQueue).toHaveLength(0);
-    expect(uniquePlayerIds(session.upcomingMatches.flatMap((match) => playersOf(match)))).toHaveLength(12);
+    expect(uniquePlayerIds(session.upcomingMatches.flatMap((match) => playersOf(match)))).toHaveLength(8);
+
+    const courtPlayerIds = new Set(session.courts.flatMap((court) => playersOf(court.match)));
+    const upcomingPlayerIds = session.upcomingMatches.flatMap((match) => playersOf(match));
+    expect(upcomingPlayerIds.some((playerId) => courtPlayerIds.has(playerId))).toBe(false);
   });
 
   it("adds a guest as a normal-frequency attendee before the first assignment", () => {
@@ -68,8 +72,8 @@ describe("session store upcoming matches", () => {
     session.setAttendees(makeAttendees(7, "남"));
     session.assignInitialCourts();
 
-    expect(session.upcomingMatches).toHaveLength(1);
-    expect(session.waitingQueue).toHaveLength(0);
+    expect(session.upcomingMatches).toHaveLength(0);
+    expect(session.waitingQueue).toHaveLength(3);
 
     const guest = session.addGuestAttendee({
       name: "게스트B",
@@ -78,7 +82,7 @@ describe("session store upcoming matches", () => {
     });
 
     expect(guest?.isGuest).toBe(true);
-    expect(session.upcomingMatches).toHaveLength(2);
+    expect(session.upcomingMatches).toHaveLength(1);
     expect(session.waitingQueue).toHaveLength(0);
     expect(session.upcomingMatches.flatMap((match) => playersOf(match))).toContain(guest?.id);
   });
@@ -220,7 +224,8 @@ describe("session store upcoming matches", () => {
     const upcomingPlayer = session.upcomingMatches[0].teamA.players[0];
 
     expect(session.setAttendeeDisabled(upcomingPlayer.id, true)).toBe(true);
-    expect(session.upcomingMatches).toHaveLength(1);
+    expect(session.upcomingMatches).toHaveLength(0);
+    expect(session.waitingQueue).toHaveLength(3);
     expect(session.waitingQueue.map((player) => player.id)).not.toContain(upcomingPlayer.id);
 
     expect(session.setAttendeeDisabled(upcomingPlayer.id, false)).toBe(true);
@@ -527,6 +532,13 @@ describe("session store upcoming matches", () => {
     expect([...session.upcomingMatches.flatMap((match) => playersOf(match)), ...session.waitingQueue.map((player) => player.id)]).toContain(
       originalUpcomingPlayer.id,
     );
+
+    session.rebuildUpcomingMatchesFromGroups([
+      ...session.upcomingMatches.map((match) => [...match.teamA.players, ...match.teamB.players]),
+      session.waitingQueue,
+    ]);
+
+    expect(playersOf(session.upcomingMatches[0])).toContain(lockedPlayer?.id);
   });
 
   it("moves an in-progress player from a later upcoming match into an earlier manual slot", () => {
@@ -649,7 +661,7 @@ describe("session store upcoming matches", () => {
     expect(isThreeToOneMatch(maleCourt?.match as MatchLike)).toBe(true);
   });
 
-  it("rebuilds three upcoming matches from waiting and finished players in the common 16-player 2-court case", () => {
+  it("rebuilds upcoming matches from waiting and finished players in the common 16-player 2-court case", () => {
     const session = useSessionStore();
     vi.spyOn(session, "persistRemoteSession").mockResolvedValue(undefined);
 
@@ -663,7 +675,7 @@ describe("session store upcoming matches", () => {
     session.finishCourt(1);
 
     const nextGroupKeys = session.upcomingMatches.map((match) => groupKey(match));
-    expect(session.upcomingMatches).toHaveLength(3);
+    expect(session.upcomingMatches).toHaveLength(2);
     expect(session.waitingQueue).toHaveLength(0);
     expect(nextGroupKeys).not.toContain(finishedGroupKey);
   });
@@ -773,6 +785,8 @@ describe("session store upcoming matches", () => {
     await session.loadTodayAttendees({ resetSession: true });
 
     expect(session.selectedCount).toBe(4);
+    expect(session.activeAttendeeCount).toBe(0);
+    expect(session.disabledCount).toBe(4);
     expect(session.hasAssignedCourt).toBe(false);
     expect(session.completedGameCount).toBe(0);
     expect(session.upcomingMatches).toHaveLength(0);
